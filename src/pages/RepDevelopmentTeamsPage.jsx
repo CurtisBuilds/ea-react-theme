@@ -446,6 +446,7 @@ export default function RepDevelopmentTeamsPage() {
   const waiverLink = linkFromUrl(page.waiverButtonUrl, '');
   const tryoutRows = parseTryoutRows(page.tryoutRows);
   const tryoutSecondRows = parseTryoutRows(page.tryoutSecondRows);
+  const tryoutThirdRows = parseTryoutRows(page.tryoutThirdRows);
   const container = {
     maxWidth: 1060,
     margin: '0 auto',
@@ -574,26 +575,40 @@ export default function RepDevelopmentTeamsPage() {
             bodyStyle={bodyStyle}
             style={{ marginTop: isMobile ? 38 : 54 }}
           />
+          <TryoutScheduleBlock
+            heading={pick(page.tryoutThirdHeading, 'Simcoe')}
+            body={pick(page.tryoutThirdBody, '')}
+            rows={tryoutThirdRows}
+            isMobile={isMobile}
+            bodyStyle={bodyStyle}
+            style={{ marginTop: isMobile ? 38 : 54 }}
+          />
         </section>
 
         <section style={{
           ...container,
           paddingTop: 0,
           paddingBottom: isMobile ? 54 : 76,
-          display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-          gap: isMobile ? 24 : 28,
         }}>
-          <MapEmbed
-            title={pick(page.map1Heading, 'Primary Training Location')}
-            src={pick(page.map1Embed, '')}
-            isMobile={isMobile}
-          />
-          <MapEmbed
-            title={pick(page.map2Heading, 'Secondary Training Location')}
-            src={pick(page.map2Embed, '')}
-            isMobile={isMobile}
-          />
+          <SectionHeading isMobile={isMobile}>
+            {pick(page.locationsHeading, 'Locations')}
+          </SectionHeading>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+            gap: isMobile ? 24 : 28,
+          }}>
+            <MapEmbed
+              title={pick(page.map1Heading, 'Primary Training Location')}
+              src={pick(page.map1Embed, '')}
+              isMobile={isMobile}
+            />
+            <MapEmbed
+              title={pick(page.map2Heading, 'Secondary Training Location')}
+              src={pick(page.map2Embed, '')}
+              isMobile={isMobile}
+            />
+          </div>
         </section>
       </main>
     </Layout>

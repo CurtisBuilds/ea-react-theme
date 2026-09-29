@@ -731,6 +731,19 @@ function ea_rep_development_field_defaults() {
             'description' => 'One row per line: Date | Time | Team/program | Location.',
             'default' => 'Oct 1 | 6:00-8:00PM | U12 | Holy Name - Richmond Hill',
         ),
+        'ea_rep_development_tryout_third_heading' => array(
+            'key' => 'tryoutThirdHeading', 'label' => 'Tryout schedule 3 — Heading', 'type' => 'text',
+            'default' => 'Simcoe',
+        ),
+        'ea_rep_development_tryout_third_body' => array(
+            'key' => 'tryoutThirdBody', 'label' => 'Tryout schedule 3 — Intro text', 'type' => 'textarea',
+            'default' => '',
+        ),
+        'ea_rep_development_tryout_third_rows' => array(
+            'key' => 'tryoutThirdRows', 'label' => 'Tryout schedule 3 — Table rows', 'type' => 'textarea',
+            'description' => 'One row per line: Date | Time | Team/program | Location.',
+            'default' => '',
+        ),
         'ea_rep_development_waiver_button_label' => array(
             'key' => 'waiverButtonLabel', 'label' => 'Registration — Waiver button text', 'type' => 'text',
             'default' => 'Download Waiver',
@@ -744,6 +757,10 @@ function ea_rep_development_field_defaults() {
             'key' => 'formShortcode', 'label' => 'Registration — Form shortcode', 'type' => 'textarea',
             'description' => 'Paste the WPForms shortcode for the Rep Development Teams form.',
             'default' => '',
+        ),
+        'ea_rep_development_locations_heading' => array(
+            'key' => 'locationsHeading', 'label' => 'Locations — Heading', 'type' => 'text',
+            'default' => 'Locations',
         ),
         'ea_rep_development_map_1_heading' => array(
             'key' => 'map1Heading', 'label' => 'Map 1 — Heading', 'type' => 'text',
