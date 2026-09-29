@@ -243,25 +243,37 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
     <section
       aria-label={`Free trial signup for ${cityName}`}
       style={{
+        ...FB.card,
         display: 'grid',
-        gridTemplateColumns: isMobile ? '1fr' : 'minmax(220px, 0.34fr) minmax(0, 1fr)',
-        gap: isMobile ? 14 : 24,
-        alignItems: 'start',
-        margin: isMobile ? '0 0 22px' : '0 0 28px',
-        padding: isMobile ? '0 0 4px' : '0 0 6px',
+        gridTemplateColumns: isMobile ? '1fr' : 'minmax(220px, 0.44fr) minmax(0, 1fr)',
+        gap: isMobile ? 18 : 24,
+        alignItems: 'center',
+        margin: isMobile ? '0 0 18px' : '0 0 22px',
+        padding: isMobile ? '20px' : '20px 24px',
+        background: '#fff',
       }}
     >
       <div>
         <h2 style={{
-          ...FB.h(isMobile ? 28 : 30),
+          ...FB.h(isMobile ? 28 : 27),
           margin: 0,
           fontWeight: 'var(--fw-regular, 400)',
           letterSpacing: '0.01em',
           color: 'var(--ea-navy, #10414F)',
           lineHeight: 1.06,
         }}>
-          Free Trial
+          Try a Free Class in {cityName}
         </h2>
+        <p style={{
+          margin: '8px 0 0',
+          maxWidth: 360,
+          fontFamily: 'var(--font-body, "Inclusive Sans", sans-serif)',
+          fontSize: isMobile ? 15 : 15,
+          lineHeight: 1.4,
+          color: 'var(--ea-ink, #1E526E)',
+        }}>
+          Send us your details and our team will follow up about the session that works best.
+        </p>
       </div>
 
       {submitted ? (
@@ -276,12 +288,12 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
           Thank you. We received your free trial request and will follow up soon.
         </div>
       ) : (
-        <form onSubmit={handleSubmit} style={{ width: '100%' }}>
+        <form onSubmit={handleSubmit}>
           <div style={{
             display: 'grid',
             gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))',
-            gap: isMobile ? 12 : 12,
-            alignItems: 'stretch',
+            gap: isMobile ? 12 : 10,
+            alignItems: 'center',
           }}>
             <div>
               <label style={labelStyle} htmlFor="city-ft-name">Name</label>
@@ -304,7 +316,7 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
                 ))}
               </select>
             </div>
-            <div style={{ display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-start' }}>
+            <div style={{ display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end' }}>
               <button
                 type="submit"
                 disabled={sending}
@@ -312,7 +324,7 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
                   ...FB.btn('primary'),
                   width: isMobile ? '100%' : 'auto',
                   minHeight: isMobile ? undefined : 44,
-                  padding: isMobile ? undefined : '10px 30px',
+                  padding: isMobile ? undefined : '10px 24px',
                   opacity: sending ? 0.7 : 1,
                   cursor: sending ? 'default' : 'pointer',
                 }}

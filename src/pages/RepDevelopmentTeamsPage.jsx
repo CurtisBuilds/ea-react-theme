@@ -447,6 +447,48 @@ export default function RepDevelopmentTeamsPage() {
   const tryoutRows = parseTryoutRows(page.tryoutRows);
   const tryoutSecondRows = parseTryoutRows(page.tryoutSecondRows);
   const tryoutThirdRows = parseTryoutRows(page.tryoutThirdRows);
+  const tryoutSchedules = [
+    {
+      enabled: page.tryoutEnabled !== false,
+      heading: pick(page.tryoutHeading, 'Newmarket Rep Development Teams Tryout'),
+      body: pick(page.tryoutBody, 'The first tryout will take place at TUC in Newmarket. Please register through the form on this page before attending.'),
+      rows: tryoutRows,
+    },
+    {
+      enabled: page.tryoutSecondEnabled !== false,
+      heading: pick(page.tryoutSecondHeading, ''),
+      body: pick(page.tryoutSecondBody, ''),
+      rows: tryoutSecondRows,
+    },
+    {
+      enabled: page.tryoutThirdEnabled !== false,
+      heading: pick(page.tryoutThirdHeading, 'Simcoe'),
+      body: pick(page.tryoutThirdBody, ''),
+      rows: tryoutThirdRows,
+    },
+  ].filter((schedule) => schedule.enabled);
+  const maps = [
+    {
+      enabled: page.map1Enabled !== false,
+      title: pick(page.map1Heading, 'Primary Training Location'),
+      src: pick(page.map1Embed, ''),
+    },
+    {
+      enabled: page.map2Enabled !== false,
+      title: pick(page.map2Heading, 'Secondary Training Location'),
+      src: pick(page.map2Embed, ''),
+    },
+    {
+      enabled: page.map3Enabled === true,
+      title: pick(page.map3Heading, 'Additional Location'),
+      src: pick(page.map3Embed, ''),
+    },
+    {
+      enabled: page.map4Enabled === true,
+      title: pick(page.map4Heading, 'Additional Location'),
+      src: pick(page.map4Embed, ''),
+    },
+  ].filter((map) => map.enabled && map.src);
   const container = {
     maxWidth: 1060,
     margin: '0 auto',
@@ -555,61 +597,51 @@ export default function RepDevelopmentTeamsPage() {
           </div>
         </section>
 
-        <section id="rep-development-tryout" style={{
-          ...container,
-          paddingTop: isMobile ? 10 : 18,
-          paddingBottom: isMobile ? 40 : 58,
-        }}>
-          <TryoutScheduleBlock
-            heading={pick(page.tryoutHeading, 'Newmarket Rep Development Teams Tryout')}
-            body={pick(page.tryoutBody, 'The first tryout will take place at TUC in Newmarket. Please register through the form on this page before attending.')}
-            rows={tryoutRows}
-            isMobile={isMobile}
-            bodyStyle={bodyStyle}
-          />
-          <TryoutScheduleBlock
-            heading={pick(page.tryoutSecondHeading, '')}
-            body={pick(page.tryoutSecondBody, '')}
-            rows={tryoutSecondRows}
-            isMobile={isMobile}
-            bodyStyle={bodyStyle}
-            style={{ marginTop: isMobile ? 38 : 54 }}
-          />
-          <TryoutScheduleBlock
-            heading={pick(page.tryoutThirdHeading, 'Simcoe')}
-            body={pick(page.tryoutThirdBody, '')}
-            rows={tryoutThirdRows}
-            isMobile={isMobile}
-            bodyStyle={bodyStyle}
-            style={{ marginTop: isMobile ? 38 : 54 }}
-          />
-        </section>
-
-        <section style={{
-          ...container,
-          paddingTop: 0,
-          paddingBottom: isMobile ? 54 : 76,
-        }}>
-          <SectionHeading isMobile={isMobile}>
-            {pick(page.locationsHeading, 'Locations')}
-          </SectionHeading>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-            gap: isMobile ? 24 : 28,
+        {tryoutSchedules.length > 0 && (
+          <section id="rep-development-tryout" style={{
+            ...container,
+            paddingTop: isMobile ? 10 : 18,
+            paddingBottom: isMobile ? 40 : 58,
           }}>
-            <MapEmbed
-              title={pick(page.map1Heading, 'Primary Training Location')}
-              src={pick(page.map1Embed, '')}
-              isMobile={isMobile}
-            />
-            <MapEmbed
-              title={pick(page.map2Heading, 'Secondary Training Location')}
-              src={pick(page.map2Embed, '')}
-              isMobile={isMobile}
-            />
-          </div>
-        </section>
+            {tryoutSchedules.map((schedule, index) => (
+              <TryoutScheduleBlock
+                key={`${schedule.heading}-${index}`}
+                heading={schedule.heading}
+                body={schedule.body}
+                rows={schedule.rows}
+                isMobile={isMobile}
+                bodyStyle={bodyStyle}
+                style={index === 0 ? {} : { marginTop: isMobile ? 38 : 54 }}
+              />
+            ))}
+          </section>
+        )}
+
+        {maps.length > 0 && (
+          <section style={{
+            ...container,
+            paddingTop: 0,
+            paddingBottom: isMobile ? 54 : 76,
+          }}>
+            <SectionHeading isMobile={isMobile}>
+              {pick(page.locationsHeading, 'Locations')}
+            </SectionHeading>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+              gap: isMobile ? 24 : 28,
+            }}>
+              {maps.map((map, index) => (
+                <MapEmbed
+                  key={`${map.title}-${index}`}
+                  title={map.title}
+                  src={map.src}
+                  isMobile={isMobile}
+                />
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     </Layout>
   );

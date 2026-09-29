@@ -705,6 +705,10 @@ function ea_rep_development_field_defaults() {
             'key' => 'registrationBody', 'label' => 'Registration — Body text', 'type' => 'textarea',
             'default' => 'Register for the first Newmarket Rep Development Teams tryout. Complete the form and our team will follow up with next steps, team details, and any updates families need before attending.' . "\n\n" . 'Development team placement may depend on athlete age, experience, availability, and roster needs.',
         ),
+        'ea_rep_development_tryout_enabled' => array(
+            'key' => 'tryoutEnabled', 'label' => 'Tryout schedule 1 — Show section', 'type' => 'checkbox',
+            'default' => true,
+        ),
         'ea_rep_development_tryout_heading' => array(
             'key' => 'tryoutHeading', 'label' => 'Tryout schedule 1 — Heading', 'type' => 'text',
             'default' => 'Newmarket Rep Development Teams Tryout',
@@ -718,6 +722,10 @@ function ea_rep_development_field_defaults() {
             'description' => 'One row per line: Date | Time | Team/program | Location.',
             'default' => 'Sept 25 | 6:00-8:00PM | U12 | TUC',
         ),
+        'ea_rep_development_tryout_second_enabled' => array(
+            'key' => 'tryoutSecondEnabled', 'label' => 'Tryout schedule 2 — Show section', 'type' => 'checkbox',
+            'default' => true,
+        ),
         'ea_rep_development_tryout_second_heading' => array(
             'key' => 'tryoutSecondHeading', 'label' => 'Tryout schedule 2 — Heading', 'type' => 'text',
             'default' => 'Richmond Hill Rep Development Teams Tryout',
@@ -730,6 +738,10 @@ function ea_rep_development_field_defaults() {
             'key' => 'tryoutSecondRows', 'label' => 'Tryout schedule 2 — Table rows', 'type' => 'textarea',
             'description' => 'One row per line: Date | Time | Team/program | Location.',
             'default' => 'Oct 1 | 6:00-8:00PM | U12 | Holy Name - Richmond Hill',
+        ),
+        'ea_rep_development_tryout_third_enabled' => array(
+            'key' => 'tryoutThirdEnabled', 'label' => 'Tryout schedule 3 — Show section', 'type' => 'checkbox',
+            'default' => true,
         ),
         'ea_rep_development_tryout_third_heading' => array(
             'key' => 'tryoutThirdHeading', 'label' => 'Tryout schedule 3 — Heading', 'type' => 'text',
@@ -762,6 +774,10 @@ function ea_rep_development_field_defaults() {
             'key' => 'locationsHeading', 'label' => 'Locations — Heading', 'type' => 'text',
             'default' => 'Locations',
         ),
+        'ea_rep_development_map_1_enabled' => array(
+            'key' => 'map1Enabled', 'label' => 'Map 1 — Show map', 'type' => 'checkbox',
+            'default' => true,
+        ),
         'ea_rep_development_map_1_heading' => array(
             'key' => 'map1Heading', 'label' => 'Map 1 — Heading', 'type' => 'text',
             'default' => 'Primary Training Location',
@@ -770,12 +786,40 @@ function ea_rep_development_field_defaults() {
             'key' => 'map1Embed', 'label' => 'Map 1 — Embed src URL', 'type' => 'map',
             'default' => '',
         ),
+        'ea_rep_development_map_2_enabled' => array(
+            'key' => 'map2Enabled', 'label' => 'Map 2 — Show map', 'type' => 'checkbox',
+            'default' => true,
+        ),
         'ea_rep_development_map_2_heading' => array(
             'key' => 'map2Heading', 'label' => 'Map 2 — Heading', 'type' => 'text',
             'default' => 'Secondary Training Location',
         ),
         'ea_rep_development_map_2_embed' => array(
             'key' => 'map2Embed', 'label' => 'Map 2 — Embed src URL', 'type' => 'map',
+            'default' => '',
+        ),
+        'ea_rep_development_map_3_enabled' => array(
+            'key' => 'map3Enabled', 'label' => 'Map 3 — Show map', 'type' => 'checkbox',
+            'default' => false,
+        ),
+        'ea_rep_development_map_3_heading' => array(
+            'key' => 'map3Heading', 'label' => 'Map 3 — Heading', 'type' => 'text',
+            'default' => 'Additional Location',
+        ),
+        'ea_rep_development_map_3_embed' => array(
+            'key' => 'map3Embed', 'label' => 'Map 3 — Embed src URL', 'type' => 'map',
+            'default' => '',
+        ),
+        'ea_rep_development_map_4_enabled' => array(
+            'key' => 'map4Enabled', 'label' => 'Map 4 — Show map', 'type' => 'checkbox',
+            'default' => false,
+        ),
+        'ea_rep_development_map_4_heading' => array(
+            'key' => 'map4Heading', 'label' => 'Map 4 — Heading', 'type' => 'text',
+            'default' => 'Additional Location',
+        ),
+        'ea_rep_development_map_4_embed' => array(
+            'key' => 'map4Embed', 'label' => 'Map 4 — Embed src URL', 'type' => 'map',
             'default' => '',
         ),
     );
@@ -805,6 +849,8 @@ function ea_react_rep_development() {
             $value = ea_sanitize_rep_development_url( $value );
         } elseif ( 'color' === $meta['type'] ) {
             $value = ea_sanitize_rep_development_color( $value );
+        } elseif ( 'checkbox' === $meta['type'] ) {
+            $value = wp_validate_boolean( $value );
         } elseif ( 'map' === $meta['type'] ) {
             $value = ea_sanitize_map_embed_field( $value );
         }
@@ -825,6 +871,8 @@ function ea_customize_rep_development( $wp_customize ) {
             $sanitize = 'ea_sanitize_rep_development_url';
         } elseif ( 'color' === $meta['type'] ) {
             $sanitize = 'ea_sanitize_rep_development_color';
+        } elseif ( 'checkbox' === $meta['type'] ) {
+            $sanitize = 'wp_validate_boolean';
         } elseif ( 'map' === $meta['type'] ) {
             $sanitize = 'ea_sanitize_map_embed_field';
         } else {
