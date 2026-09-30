@@ -142,6 +142,8 @@ function ea_react_enqueue_assets() {
             'volleyball' => ea_react_volleyball(),
             // Rep Development Teams page fields (Appearance -> Customize -> EA Rep Development Teams).
             'repDevelopment' => ea_react_rep_development(),
+            // Test page template fields (Appearance -> Customize -> EA Test Page).
+            'testPage' => ea_react_test_page(),
             // Admin-editable marketing copy (Appearance → Customize → EA Text).
             'texts'    => ea_react_texts(),
             // Dedicated Camps page content (Appearance → Customize → EA Camps Page).
@@ -905,6 +907,125 @@ function ea_customize_rep_development( $wp_customize ) {
     }
 }
 add_action( 'customize_register', 'ea_customize_rep_development' );
+
+function ea_test_page_field_defaults() {
+    return array(
+        'ea_test_page_eyebrow' => array(
+            'key' => 'eyebrow', 'label' => 'Hero — Eyebrow', 'type' => 'text',
+            'default' => 'Test Template',
+        ),
+        'ea_test_page_heading' => array(
+            'key' => 'heading', 'label' => 'Hero — Heading', 'type' => 'text',
+            'default' => 'EA Test Page',
+        ),
+        'ea_test_page_lead' => array(
+            'key' => 'lead', 'label' => 'Hero — Lead text', 'type' => 'textarea',
+            'default' => 'Use this page to preview new layout ideas, image placements, buttons, and editable content before moving them into a live template.',
+        ),
+        'ea_test_page_button_label' => array(
+            'key' => 'buttonLabel', 'label' => 'Hero — Button text', 'type' => 'text',
+            'default' => 'View Programs',
+        ),
+        'ea_test_page_button_url' => array(
+            'key' => 'buttonUrl', 'label' => 'Hero — Button URL', 'type' => 'url',
+            'default' => '/programs/',
+        ),
+        'ea_test_page_hero_image' => array(
+            'key' => 'heroImage', 'label' => 'Hero — Image', 'type' => 'image',
+            'default' => '',
+        ),
+        'ea_test_page_section_heading' => array(
+            'key' => 'sectionHeading', 'label' => 'Content — Heading', 'type' => 'text',
+            'default' => 'Editable Template Blocks',
+        ),
+        'ea_test_page_section_body' => array(
+            'key' => 'sectionBody', 'label' => 'Content — Body text', 'type' => 'textarea',
+            'default' => 'This area is intentionally simple. Swap the copy and images in the Customizer to test spacing, headings, and content structure without affecting other live pages.',
+        ),
+        'ea_test_page_card_1_heading' => array(
+            'key' => 'card1Heading', 'label' => 'Card 1 — Heading', 'type' => 'text',
+            'default' => 'First Test Block',
+        ),
+        'ea_test_page_card_1_body' => array(
+            'key' => 'card1Body', 'label' => 'Card 1 — Body text', 'type' => 'textarea',
+            'default' => 'Use this card for a small note, feature, CTA, or section idea.',
+        ),
+        'ea_test_page_card_1_image' => array(
+            'key' => 'card1Image', 'label' => 'Card 1 — Image', 'type' => 'image',
+            'default' => '',
+        ),
+        'ea_test_page_card_2_heading' => array(
+            'key' => 'card2Heading', 'label' => 'Card 2 — Heading', 'type' => 'text',
+            'default' => 'Second Test Block',
+        ),
+        'ea_test_page_card_2_body' => array(
+            'key' => 'card2Body', 'label' => 'Card 2 — Body text', 'type' => 'textarea',
+            'default' => 'This second card gives the template enough structure to test repeated content.',
+        ),
+        'ea_test_page_card_2_image' => array(
+            'key' => 'card2Image', 'label' => 'Card 2 — Image', 'type' => 'image',
+            'default' => '',
+        ),
+    );
+}
+
+function ea_sanitize_test_page_url( $value ) {
+    $value = trim( (string) $value );
+    if ( '' === $value ) {
+        return '';
+    }
+    if ( 0 === strpos( $value, '/' ) || preg_match( '/^#[A-Za-z][A-Za-z0-9_-]*$/', $value ) ) {
+        return sanitize_text_field( $value );
+    }
+    return esc_url_raw( $value, array( 'http', 'https', 'mailto', 'tel' ) );
+}
+
+function ea_react_test_page() {
+    $values = array();
+    foreach ( ea_test_page_field_defaults() as $setting => $meta ) {
+        $value = get_theme_mod( $setting, $meta['default'] );
+        if ( 'url' === $meta['type'] || 'image' === $meta['type'] ) {
+            $value = ea_sanitize_test_page_url( $value );
+        }
+        $values[ $meta['key'] ] = $value;
+    }
+    return $values;
+}
+
+function ea_customize_test_page( $wp_customize ) {
+    $wp_customize->add_section( 'ea_test_page', array(
+        'title'       => __( 'EA Test Page', 'ea-react-theme' ),
+        'description' => __( 'Edit the sandbox test page template.', 'ea-react-theme' ),
+        'priority'    => 38,
+    ) );
+
+    foreach ( ea_test_page_field_defaults() as $setting => $meta ) {
+        $sanitize = ( 'url' === $meta['type'] || 'image' === $meta['type'] )
+            ? 'ea_sanitize_test_page_url'
+            : ( 'textarea' === $meta['type'] ? 'sanitize_textarea_field' : 'sanitize_text_field' );
+
+        $wp_customize->add_setting( $setting, array(
+            'default'           => $meta['default'],
+            'sanitize_callback' => $sanitize,
+            'transport'         => 'refresh',
+        ) );
+
+        $control_args = array(
+            'label'    => $meta['label'],
+            'section'  => 'ea_test_page',
+            'settings' => $setting,
+        );
+
+        if ( 'image' === $meta['type'] ) {
+            $wp_customize->add_control( new WP_Customize_Image_Control( $wp_customize, $setting, $control_args ) );
+        } else {
+            $wp_customize->add_control( $setting, array_merge( $control_args, array(
+                'type' => $meta['type'],
+            ) ) );
+        }
+    }
+}
+add_action( 'customize_register', 'ea_customize_test_page' );
 
 // ─── Swappable copy via the Customizer (Appearance → Customize → EA Text) ──────
 // Each control stores a string as a theme_mod. ea_react_texts() collects them for

@@ -23,6 +23,7 @@ import CommunityPartnershipsPage from './pages/CommunityPartnershipsPage.jsx';
 import CampsPage from './pages/CampsPage.jsx';
 import VolleyballPage from './pages/VolleyballPage.jsx';
 import RepDevelopmentTeamsPage from './pages/RepDevelopmentTeamsPage.jsx';
+import TestPage from './pages/TestPage.jsx';
 
 const PAGES = {
   home:      HomePage,
@@ -44,6 +45,8 @@ const PAGES = {
   'rep-development-teams': RepDevelopmentTeamsPage,
   'rep-development': RepDevelopmentTeamsPage,
   'development-teams': RepDevelopmentTeamsPage,
+  testPage: TestPage,
+  'test-page': TestPage,
 };
 
 const el = document.getElementById('ea-react-root');
