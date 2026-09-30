@@ -3,7 +3,24 @@
  *
  * A lightweight sandbox template with editable Customizer content.
  */
+import { useEffect, useState } from 'react';
 import { Layout, FB, getThemeData, useViewport, sectionLinkAttrs } from '../lib/shared.jsx';
+
+const CUSTOMIZER_SETTINGS = {
+  ea_test_page_eyebrow: 'eyebrow',
+  ea_test_page_heading: 'heading',
+  ea_test_page_lead: 'lead',
+  ea_test_page_button_label: 'buttonLabel',
+  ea_test_page_button_url: 'buttonUrl',
+  ea_test_page_section_heading: 'sectionHeading',
+  ea_test_page_section_body: 'sectionBody',
+  ea_test_page_card_1_heading: 'card1Heading',
+  ea_test_page_card_1_body: 'card1Body',
+  ea_test_page_card_1_image: 'card1Image',
+  ea_test_page_card_2_heading: 'card2Heading',
+  ea_test_page_card_2_body: 'card2Body',
+  ea_test_page_card_2_image: 'card2Image',
+};
 
 function pick(value, fallback) {
   return value === undefined || value === null || value === '' ? fallback : value;
@@ -80,11 +97,33 @@ function TestCard({ heading, body, image, isMobile }) {
 }
 
 export default function TestPage() {
-  const { isMobile, isTablet } = useViewport();
+  const { isMobile } = useViewport();
   const t = getThemeData();
-  const page = t.testPage || {};
+  const [page, setPage] = useState(t.testPage || {});
   const buttonHref = pick(page.buttonUrl, '/programs/');
   const buttonLink = sectionLinkAttrs({ url: buttonHref });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.wp || !window.wp.customize) {
+      return undefined;
+    }
+
+    const cleanup = [];
+
+    Object.entries(CUSTOMIZER_SETTINGS).forEach(([settingName, key]) => {
+      window.wp.customize(settingName, (setting) => {
+        const update = (value) => {
+          setPage((current) => ({ ...current, [key]: value }));
+        };
+
+        update(setting.get());
+        setting.bind(update);
+        cleanup.push(() => setting.unbind(update));
+      });
+    });
+
+    return () => cleanup.forEach((unbind) => unbind());
+  }, []);
 
   const bodyStyle = {
     margin: 0,
@@ -104,10 +143,7 @@ export default function TestPage() {
           padding: isMobile ? '42px 0 64px' : '72px 0 96px',
         }}>
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: isTablet ? '1fr' : 'minmax(0, 0.9fr) minmax(320px, 0.72fr)',
-            gap: isMobile ? 28 : 48,
-            alignItems: 'center',
+            maxWidth: 760,
           }}>
             <div>
               <p style={{
@@ -141,7 +177,6 @@ export default function TestPage() {
                 </a>
               )}
             </div>
-            {imageBlock(pick(page.heroImage, ''), pick(page.heading, 'EA Test Page'), isMobile)}
           </div>
 
           <section style={{ marginTop: isMobile ? 48 : 72 }}>

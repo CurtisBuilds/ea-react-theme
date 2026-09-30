@@ -930,10 +930,6 @@ function ea_test_page_field_defaults() {
             'key' => 'buttonUrl', 'label' => 'Hero — Button URL', 'type' => 'url',
             'default' => '/programs/',
         ),
-        'ea_test_page_hero_image' => array(
-            'key' => 'heroImage', 'label' => 'Hero — Image', 'type' => 'image',
-            'default' => '',
-        ),
         'ea_test_page_section_heading' => array(
             'key' => 'sectionHeading', 'label' => 'Content — Heading', 'type' => 'text',
             'default' => 'Editable Template Blocks',
@@ -1007,7 +1003,7 @@ function ea_customize_test_page( $wp_customize ) {
         $wp_customize->add_setting( $setting, array(
             'default'           => $meta['default'],
             'sanitize_callback' => $sanitize,
-            'transport'         => 'refresh',
+            'transport'         => 'postMessage',
         ) );
 
         $control_args = array(
