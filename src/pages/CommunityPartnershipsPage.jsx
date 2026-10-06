@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Layout, useDSComponents, useViewport, getThemeData, FB } from '../lib/shared.jsx';
 import { CITY_COORDS } from '../data/venueCoords.js';
 
-const PROGRAMS_DATA_URL = 'https://sleep-status.github.io/ea-programs-json/data/programs.json';
+const PROGRAMS_DATA_URL = 'https://curtisbuilds.github.io/ea-programs-json/data/programs.json';
 
 const DEFAULT_MARKERS = [
   'Newmarket, ON|44.0592|-79.4613',
