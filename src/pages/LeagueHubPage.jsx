@@ -16,7 +16,7 @@ import {
 } from '../data/cities.js';
 
 const SCROLL_OFFSET = 100;
-export const PROGRAMS_DATA_URL = 'https://sleep-status.github.io/ea-programs-json/data/programs.json';
+export const PROGRAMS_DATA_URL = 'https://curtisbuilds.github.io/ea-programs-json/data/programs.json';
 
 const FALLBACK_PROGRAMS = [
   {

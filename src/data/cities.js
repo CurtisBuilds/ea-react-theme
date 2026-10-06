@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export const CITIES_DATA_URL = 'https://sleep-status.github.io/ea-programs-json/data/cities.json';
+export const CITIES_DATA_URL = 'https://curtisbuilds.github.io/ea-programs-json/data/cities.json';
 
 export const norm = (value) => String(value || '').trim().toLowerCase();
 
