@@ -843,7 +843,7 @@ export function LeagueCityCard({ summary, isMobile = false, onSubscribe, t, href
 }
 
 function cityRecordKey(city) {
-  return citySlug(city?.City || city?.city);
+  return norm(city?.City || city?.city);
 }
 
 function cityRecordProvince(city) {
@@ -890,7 +890,7 @@ function buildInactiveCitySummaries(cityRecords, activeCityKeys, { search = '', 
       const coords = cityRecordCoords(city);
       return {
         key: cityRecordKey(city),
-        slug: cityRecordKey(city),
+        slug: citySlug(cityName),
         city: cityName,
         province: provinceName,
         coords,
