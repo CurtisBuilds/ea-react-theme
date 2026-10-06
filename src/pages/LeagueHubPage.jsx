@@ -10,7 +10,7 @@ import { resolveVenueCoords } from '../data/venueCoords.js';
 import { summaryCityHref, useCitiesFeed } from '../data/cities.js';
 
 const SCROLL_OFFSET = 100;
-export const PROGRAMS_DATA_URL = 'https://sleep-status.github.io/ea-programs-json/data/programs.json';
+export const PROGRAMS_DATA_URL = 'https://curtisbuilds.github.io/ea-programs-json/data/programs.json';
 const LIST_BATCH_SIZE = 12;
 
 const FALLBACK_PROGRAMS = [
