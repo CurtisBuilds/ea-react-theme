@@ -852,7 +852,7 @@ function sportBrand(t) {
 // ─── Live programs feed (public JSON) ─────────────────────────────────────────
 // Fetch the program rows, keep active EA/TS rows, and render direct registration
 // cards instead of collapsing them into city pages.
-const PROGRAMS_DATA_URL = 'https://sleep-status.github.io/ea-programs-json/data/programs.json';
+const PROGRAMS_DATA_URL = 'https://curtisbuilds.github.io/ea-programs-json/data/programs.json';
 
 // Approximate coordinates for the cities that appear in the feed, keyed by the
 // normalized city name. Used to sort cards by distance from the visitor when they
