@@ -410,7 +410,7 @@ Admins can download the saved registrations from **wp-admin → Free Trials** us
 the **Export Free Trials CSV** button above the list table. The CSV includes the
 submission ID, athlete name, email, city, sport, selected session, and submitted
 date. Free Trial rows currently export as city `Newmarket` and sport `Badminton`
-so they can map into the same Constant Contact fields as newsletter signups.
+so they line up with newsletter signups.
 
 ---
 
@@ -420,7 +420,7 @@ Works like the Free Trial form, with **per-location** tracking:
 
 ```
 POST  {apiUrl}ea/v1/newsletter
-body: { email, location, website }   // `location` optional; `website` is a honeypot
+body: { email, location, sport, website }   // `location`/`sport` optional; `website` is a honeypot
 ```
 
 Server side (in [functions.php](functions.php)):
@@ -436,47 +436,14 @@ Subscribers are listed under **wp-admin → Newsletter**, with **Email**, **City
 
 Admins can download the saved subscribers from **wp-admin → Newsletter** using
 the **Export Newsletter CSV** button above the list table. The CSV includes the
-subscriber ID, email, city, sport, and subscribed date. The `Sport` column exports
-as `Badminton`; general newsletter signups export/sync as city `Newmarket` so
-the CSV and Constant Contact sync map cleanly into the same segment fields. These
-defaults can be changed per site with `EA_CC_DEFAULT_SPORT`,
-`EA_CC_DEFAULT_REGION`, and `EA_CC_DEFAULT_CITY`.
+subscriber ID, email, city, sport, and subscribed date. The default sport, region
+and city come from `EA_CC_DEFAULT_SPORT`, `EA_CC_DEFAULT_REGION` and
+`EA_CC_DEFAULT_CITY` in `wp-config.php` (old names kept so existing configs work).
 
-Newsletter signups can also sync to Constant Contact. Add these required
-constants to the site's `wp-config.php` (do not commit secrets to the theme):
-
-```
-define( 'EA_CC_CLIENT_ID', '...' );
-define( 'EA_CC_CLIENT_SECRET', '...' );
-define( 'EA_CC_REDIRECT_URI', 'https://eabadminton.com/wp-admin/admin-post.php?action=ea_cc_oauth_callback' );
-define( 'EA_CC_NEWSLETTER_LIST_ID', '...' );
-
-define( 'EA_CC_DEFAULT_SPORT', 'Badminton' );
-define( 'EA_CC_DEFAULT_REGION', 'York Region' );
-define( 'EA_CC_DEFAULT_CITY', 'Newmarket' );
-```
-
-By default, the sync adds the contact to the configured list and applies
-Constant Contact tags for sport, city, age group, season, and year.
-
-These custom field constants are optional legacy/richer mapping support. If they
-are omitted, Constant Contact sync still works and tags are still created/applied.
-
-```
-define( 'EA_CC_FIELD_SPORT_ID', '...' );
-define( 'EA_CC_FIELD_CITY_ID', '...' );
-define( 'EA_CC_FIELD_REGION_ID', '...' );
-define( 'EA_CC_FIELD_SEASON_ID', '...' );
-define( 'EA_CC_FIELD_PROGRAM_ID', '...' );
-define( 'EA_CC_FIELD_PROGRAM_START_ID', '...' );
-define( 'EA_CC_FIELD_REGISTRATION_DATE_ID', '...' );
-```
-
-Then go to **wp-admin → Newsletter → Constant Contact** and click
-**Connect Constant Contact**. The sync is best-effort: WordPress still stores the
-subscriber locally if Constant Contact is unavailable. During sync, the theme also
-finds or creates Constant Contact tags for sport, city, Adult, season, and year,
-then applies those tags to the contact after the list signup succeeds.
+After saving, each signup is sent to the **EA Operations app** — one signed
+request per city, with the signup's sport — by [inc/ea-app-sync.php](inc/ea-app-sync.php).
+Status, backfill and the site secret live under **Settings → EA App Sync**.
+Constant Contact is no longer used; its integration has been removed.
 
 Two entry points on the home page:
 
