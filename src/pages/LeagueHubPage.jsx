@@ -520,7 +520,7 @@ function MailIcon() {
   );
 }
 
-export function ProgramSubscribeButton({ city, province = '', sessionStart = '', programSummary = '', isMobile = false, onSubscribe }) {
+export function ProgramSubscribeButton({ city, province = '', sessionStart = '', programSummary = '', sport = '', isMobile = false, onSubscribe }) {
   const [hover, setHover] = useState(false);
   return (
     <button
@@ -530,7 +530,7 @@ export function ProgramSubscribeButton({ city, province = '', sessionStart = '',
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (onSubscribe) onSubscribe({ city, province, sessionStart, programSummary });
+        if (onSubscribe) onSubscribe({ city, province, sessionStart, programSummary, sport });
       }}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -652,7 +652,7 @@ export function ProgramCard({ program, isMobile, onSubscribe, stacked = false, t
         )}
         {onSubscribe && (
           <div style={{ marginTop: 10 }}>
-            <ProgramSubscribeButton city={city} province={province} sessionStart={sessionStart} programSummary={programSummary} isMobile={isMobile} onSubscribe={onSubscribe} />
+            <ProgramSubscribeButton city={city} province={province} sessionStart={sessionStart} programSummary={programSummary} sport={rowSportKey(program) || sportOverride || ''} isMobile={isMobile} onSubscribe={onSubscribe} />
           </div>
         )}
       </div>
@@ -861,6 +861,7 @@ export function LeagueCityCard({ summary, isMobile = false, onSubscribe, t, href
             province={summary.province}
             sessionStart={summary.nextProgram ? firstSessionDate(summary.nextProgram) : ''}
             programSummary={summary.nextProgram ? programSummaryLine(summary.nextProgram) : `${summary.displayName} programs`}
+            sport={summary.nextProgram ? (rowSportKey(summary.nextProgram) || '') : ''}
             isMobile={isMobile}
             onSubscribe={onSubscribe}
           />
@@ -881,6 +882,8 @@ export function NewsletterModal({ DS, t, location, onClose }) {
   const province = location && typeof location === 'object' ? location.province : '';
   const sessionStart = location && typeof location === 'object' ? location.sessionStart : '';
   const programSummary = location && typeof location === 'object' ? location.programSummary : '';
+  // Which sport this signup is for (elevationathletics.ca lists several sports).
+  const sport = location && typeof location === 'object' ? (location.sport || '') : '';
   const brand = sportBrand(t);
   const subscriptionLabel = city ? `${brand} ${city}` : `the ${brand} Newsletter`;
 
@@ -896,7 +899,7 @@ export function NewsletterModal({ DS, t, location, onClose }) {
       const res = await fetch(`${t.apiUrl}ea/v1/newsletter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': t.nonce },
-        body: JSON.stringify({ email, location: city, province, sessionStart, programSummary, website }),
+        body: JSON.stringify({ email, location: city, province, sessionStart, programSummary, sport, website }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data && data.message ? data.message : 'Something went wrong. Please try again.');

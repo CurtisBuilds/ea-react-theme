@@ -810,7 +810,7 @@ function bodyButtonStyle(variant = 'primary', isMobile = false, extra = {}) {
   };
 }
 
-function ProgramSubscribeButton({ city, province = '', sessionStart = '', programSummary = '', isMobile = false, onSubscribe }) {
+function ProgramSubscribeButton({ city, province = '', sessionStart = '', programSummary = '', sport = '', isMobile = false, onSubscribe }) {
   const [hover, setHover] = useState(false);
   return (
     <button
@@ -820,7 +820,7 @@ function ProgramSubscribeButton({ city, province = '', sessionStart = '', progra
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (onSubscribe) onSubscribe({ city, province, sessionStart, programSummary });
+        if (onSubscribe) onSubscribe({ city, province, sessionStart, programSummary, sport });
       }}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -1277,7 +1277,7 @@ function ActiveProgramCard({ program, isMobile = false, onSubscribe, t }) {
           </p>
         )}
         <div style={{ marginTop: 10 }}>
-          <ProgramSubscribeButton city={city} province={province} sessionStart={sessionStart} programSummary={programSummary} isMobile={isMobile} onSubscribe={onSubscribe} />
+          <ProgramSubscribeButton city={city} province={province} sessionStart={sessionStart} programSummary={programSummary} sport={rowSportKey(program) || ''} isMobile={isMobile} onSubscribe={onSubscribe} />
         </div>
       </div>
       <div style={{
@@ -1330,6 +1330,8 @@ function NewsletterModal({ DS, t, location, onClose, startSubmitted = false }) {
   const province = location && typeof location === 'object' ? location.province : '';
   const sessionStart = location && typeof location === 'object' ? location.sessionStart : '';
   const programSummary = location && typeof location === 'object' ? location.programSummary : '';
+  // Which sport this signup is for (elevationathletics.ca lists several sports).
+  const sport = location && typeof location === 'object' ? (location.sport || '') : '';
   const brand = sportBrand(t);
   const newsletterName = `${brand} Newsletter`;
   const isGeneralNewsletter = city === generalNewsletterLocation(t);
@@ -1350,7 +1352,7 @@ function NewsletterModal({ DS, t, location, onClose, startSubmitted = false }) {
       const res = await fetch(`${t.apiUrl}ea/v1/newsletter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': t.nonce },
-        body: JSON.stringify({ email, location: city, province, sessionStart, programSummary, website }),
+        body: JSON.stringify({ email, location: city, province, sessionStart, programSummary, sport, website }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data && data.message ? data.message : 'Something went wrong. Please try again.');
@@ -1666,7 +1668,7 @@ function NewsletterSection({ DS, isMobile, t }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': t.nonce },
         // Bottom-of-page signup is tagged as a general sport newsletter in the admin.
-        body: JSON.stringify({ email, location: generalNewsletterLocation(t), website }),
+        body: JSON.stringify({ email, location: generalNewsletterLocation(t), sport: siteSport(t), website }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
