@@ -1490,7 +1490,7 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
         // Lets the admin hit "Reply" to respond to the registrant.
         'Reply-To: ' . $name . ' <' . $email . '>',
     );
-    wp_mail( $to, $subject, $body, $headers );
+    ea_mail_after_response( $to, $subject, $body, $headers );
 
     return new WP_REST_Response( array( 'ok' => true, 'id' => (int) $entry_id ), 200 );
 }
@@ -2057,7 +2057,7 @@ function ea_handle_newsletter( WP_REST_Request $request ) {
         'Content-Type: text/plain; charset=UTF-8',
         'Reply-To: ' . $email,
     );
-    wp_mail( $to, $subject, $body, $headers );
+    ea_mail_after_response( $to, $subject, $body, $headers );
 
     return new WP_REST_Response( array( 'ok' => true, 'id' => (int) $entry_id ), 200 );
 }
