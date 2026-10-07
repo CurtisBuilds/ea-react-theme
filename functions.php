@@ -1465,6 +1465,17 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
     update_post_meta( $entry_id, '_ea_email', $email );
     update_post_meta( $entry_id, '_ea_session', $session );
 
+    // Send the booking to the EA Operations app (Free trials tab + contact).
+    // Best-effort: failures are queued and retried; see inc/ea-app-sync.php.
+    $trial_sport = isset( $request['sport'] ) ? sanitize_text_field( wp_unslash( $request['sport'] ) ) : '';
+    if ( '' !== $trial_sport ) {
+        update_post_meta( $entry_id, '_ea_sport', $trial_sport );
+    }
+    ea_app_trial_send( (int) $entry_id, array(
+        'sport'    => $trial_sport,
+        'page_url' => (string) wp_get_referer(),
+    ) );
+
     // 2) Email the admin as a notification (best-effort — the entry is already
     //    saved, so a mail hiccup must not fail the submission). Locally this is
     //    caught by Local's Mailpit (Site → Tools → Open Mailpit).
