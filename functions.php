@@ -1058,6 +1058,9 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
     update_post_meta( $entry_id, '_ea_email', $email );
     update_post_meta( $entry_id, '_ea_skill_level', $skill_level );
     update_post_meta( $entry_id, '_ea_session', $session );
+    // The form has no city field; its sessions run in the site's home city
+    // (same value the Free Trials list and CSV show), so record it for the EA app.
+    update_post_meta( $entry_id, '_ea_city', ea_free_trial_city_value() );
 
     // Send the booking to the EA Operations app (Free trials tab + contact).
     // Best-effort: failures are queued and retried; see inc/ea-app-sync.php.
