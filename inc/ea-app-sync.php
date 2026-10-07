@@ -2,7 +2,8 @@
 /**
  * EA app sync — sends website newsletter signups to the EA Operations app.
  *
- * Replaces the Constant Contact push (EA no longer uses Constant Contact).
+ * Replaces the old Constant Contact push (removed in this release; EA no longer
+ * uses Constant Contact).
  * Every signup is still saved in WordPress first (wp-admin → Newsletter); this
  * file then posts it, server to server, to the Supabase Edge Function
  * `website-signup`, signed with this site's secret.
@@ -60,7 +61,48 @@ function ea_app_signup_site() {
     return preg_replace( '/^www\./', '', $host );
 }
 
-function ea_app_signup_sport() {
+// Sport codes the EA app understands (same codes as the programs feed).
+function ea_app_signup_sport_code( $value ) {
+    $v = strtolower( preg_replace( '/[^a-z_]/i', '', (string) $value ) );
+    $aliases = array(
+        'pb'     => array( 'pb', 'pickleball', 'pickle' ),
+        'bad'    => array( 'bad', 'badm', 'badmin', 'badminton' ),
+        'bask'   => array( 'bask', 'basketball', 'bball' ),
+        'vball'  => array( 'vball', 'volleyball', 'volley' ),
+        's_camp' => array( 's_camp', 'camp', 'camps', 'scamp', 'scamps', 'sportscamp', 'sportscamps' ),
+    );
+    foreach ( $aliases as $code => $names ) {
+        if ( in_array( $v, $names, true ) ) {
+            return $code;
+        }
+    }
+    return '';
+}
+
+// The sport a signup belongs to. elevationathletics.ca hosts several sports, so the
+// form's own sport wins; then a "General <Sport>" location; then the page it was
+// made on (/volleyball/, /pickleball/ …); then the site's own sport.
+function ea_app_signup_sport( $override = '', $location = '', $page_url = '' ) {
+    $code = ea_app_signup_sport_code( $override );
+    if ( '' !== $code ) {
+        return $code;
+    }
+    if ( preg_match( '/^General\s+(.+)$/i', trim( (string) $location ), $m ) ) {
+        $code = ea_app_signup_sport_code( $m[1] );
+        if ( '' !== $code ) {
+            return $code;
+        }
+    }
+    $path = strtolower( (string) wp_parse_url( (string) $page_url, PHP_URL_PATH ) );
+    foreach ( array( 'volleyball' => 'vball', 'pickleball' => 'pb', 'badminton' => 'bad', 'basketball' => 'bask' ) as $word => $c ) {
+        if ( '' !== $path && false !== strpos( $path, $word ) ) {
+            return $c;
+        }
+    }
+    return ea_app_signup_site_sport();
+}
+
+function ea_app_signup_site_sport() {
     $by_site = array(
         'eapickleball.com'      => 'pb',
         'eabadminton.com'       => 'bad',
@@ -70,10 +112,8 @@ function ea_app_signup_sport() {
     if ( isset( $by_site[ $site ] ) ) {
         return $by_site[ $site ];
     }
-    $sport = strtolower( function_exists( 'ea_default_sport_value' ) ? ea_default_sport_value() : '' );
-    if ( false !== strpos( $sport, 'badminton' ) ) return 'bad';
-    if ( false !== strpos( $sport, 'basketball' ) ) return 'bask';
-    return 'pb';
+    $code = ea_app_signup_sport_code( function_exists( 'ea_default_sport_value' ) ? ea_default_sport_value() : '' );
+    return '' !== $code ? $code : 'pb';
 }
 
 // The words the visitor saw beside the Subscribe button — kept as consent evidence.
@@ -146,7 +186,12 @@ function ea_app_signup_send( $entry_id, $location, $extra = array() ) {
         ? (string) $extra['submitted_at']
         : ( ! empty( $previous['submitted_at'] ) ? (string) $previous['submitted_at'] : ea_app_signup_iso( time() ) );
 
+    $page_url = (string) ( $extra['page_url'] ?? ( $previous['page_url'] ?? '' ) );
+    $sport    = ea_app_signup_sport( $extra['sport'] ?? ( $previous['sport'] ?? '' ), $location, $page_url );
+
     $row = array(
+        'sport'        => $sport,
+        'page_url'     => $page_url,
         'status'       => 'retry',
         'result'       => '',
         'error'        => '',
@@ -173,10 +218,10 @@ function ea_app_signup_send( $entry_id, $location, $extra = array() ) {
         'email'           => $email,
         'location'        => $location,
         'province'        => (string) ( $extra['province'] ?? '' ),
-        'sport'           => ea_app_signup_sport(),
+        'sport'           => $sport,
         'session_start'   => (string) ( $extra['session_start'] ?? '' ),
         'program_summary' => (string) ( $extra['program_summary'] ?? '' ),
-        'page_url'        => (string) ( $extra['page_url'] ?? '' ),
+        'page_url'        => $page_url,
         'consent_text'    => ea_app_signup_consent_text( $location ),
     );
     $json = wp_json_encode( $body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
@@ -307,6 +352,14 @@ add_action( 'switch_theme', function () {
     wp_clear_scheduled_hook( 'ea_app_signup_retry' );
 } );
 
+// One-time cleanup: the Constant Contact integration was removed. Drop its stored
+// OAuth tokens so no live credentials linger in the database.
+add_action( 'admin_init', function () {
+    if ( false !== get_option( 'ea_cc_tokens', false ) ) {
+        delete_option( 'ea_cc_tokens' );
+    }
+} );
+
 // ─── Admin: Settings → EA App Sync ───────────────────────────────────────────
 
 add_action( 'admin_menu', function () {
@@ -367,7 +420,7 @@ function ea_app_signup_settings_page() {
     <div class="wrap">
         <h1>EA App Sync</h1>
         <p>Newsletter signups on this site are saved in WordPress, then sent to the EA Operations app.
-           Site name sent: <code><?php echo esc_html( ea_app_signup_site() ); ?></code> · sport: <code><?php echo esc_html( ea_app_signup_sport() ); ?></code></p>
+           Site name sent: <code><?php echo esc_html( ea_app_signup_site() ); ?></code> · default sport: <code><?php echo esc_html( ea_app_signup_site_sport() ); ?></code></p>
 
         <?php if ( isset( $_GET['saved'] ) ) : ?>
             <div class="notice notice-success"><p>Settings saved.</p></div>
