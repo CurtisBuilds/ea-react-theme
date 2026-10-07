@@ -445,7 +445,7 @@ add_action( 'switch_theme', function () {
 // ─── Form emails after the response ──────────────────────────────────────────
 // Sending through the site's mail server can take several seconds (≈7 s per
 // email measured on eabadminton.com's SMTP login). The visitor shouldn't wait
-// for that: queue the email, finish the HTTP response, then send.
+// for that: queue the email and send it after / outside the visitor's request.
 
 function ea_mail_after_response( $to, $subject, $message, $headers = '', $attachments = array() ) {
     global $ea_deferred_mail;
@@ -465,18 +465,63 @@ function ea_send_deferred_mail() {
     $queue            = $ea_deferred_mail;
     $ea_deferred_mail = array();
 
-    // Keep running after the browser has its answer.
-    ignore_user_abort( true );
-    if ( function_exists( 'fastcgi_finish_request' ) ) {
-        fastcgi_finish_request();      // PHP-FPM (SiteGround)
-    } elseif ( function_exists( 'litespeed_finish_request' ) ) {
-        litespeed_finish_request();
+    // PHP-FPM / LiteSpeed: finish the response, then send in this request.
+    if ( function_exists( 'fastcgi_finish_request' ) || function_exists( 'litespeed_finish_request' ) ) {
+        ignore_user_abort( true );
+        function_exists( 'fastcgi_finish_request' ) ? fastcgi_finish_request() : litespeed_finish_request();
+        ea_mail_send_all( $queue );
+        return;
     }
 
-    foreach ( $queue as $mail ) {
+    // SiteGround runs PHP as cgi-fcgi, which can't end the response early.
+    // Hand the emails to a background request instead (like WP-Cron's spawn),
+    // with a scheduled run 2 minutes later as a safety net.
+    $id = strtolower( wp_generate_password( 20, false ) );
+    set_transient( 'ea_mailq_' . $id, $queue, DAY_IN_SECONDS );
+    wp_schedule_single_event( time() + 2 * MINUTE_IN_SECONDS, 'ea_mail_queue_run', array( $id ) );
+    wp_remote_post( admin_url( 'admin-post.php' ), array(
+        'blocking'  => false,
+        'timeout'   => 1,
+        'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
+        'body'      => array(
+            'action' => 'ea_mail_queue',
+            'id'     => $id,
+            'sig'    => hash_hmac( 'sha256', $id, wp_salt( 'nonce' ) ),
+        ),
+    ) );
+}
+
+function ea_mail_send_all( $queue ) {
+    foreach ( (array) $queue as $mail ) {
         wp_mail( $mail[0], $mail[1], $mail[2], $mail[3], $mail[4] );
     }
 }
+
+// Send one stored batch. Taken out of storage first, so the background request
+// and the safety-net run never both send it.
+function ea_mail_queue_run( $id ) {
+    $id    = preg_replace( '/[^a-z0-9]/', '', strtolower( (string) $id ) );
+    $queue = '' !== $id ? get_transient( 'ea_mailq_' . $id ) : false;
+    if ( ! is_array( $queue ) ) {
+        return;
+    }
+    delete_transient( 'ea_mailq_' . $id );
+    wp_clear_scheduled_hook( 'ea_mail_queue_run', array( $id ) );
+    ea_mail_send_all( $queue );
+}
+add_action( 'ea_mail_queue_run', 'ea_mail_queue_run' );
+
+function ea_mail_queue_endpoint() {
+    ignore_user_abort( true );
+    $id  = isset( $_POST['id'] ) ? sanitize_key( wp_unslash( $_POST['id'] ) ) : '';
+    $sig = isset( $_POST['sig'] ) ? sanitize_text_field( wp_unslash( $_POST['sig'] ) ) : '';
+    if ( '' !== $id && hash_equals( hash_hmac( 'sha256', $id, wp_salt( 'nonce' ) ), $sig ) ) {
+        ea_mail_queue_run( $id );
+    }
+    exit;
+}
+add_action( 'admin_post_nopriv_ea_mail_queue', 'ea_mail_queue_endpoint' );
+add_action( 'admin_post_ea_mail_queue', 'ea_mail_queue_endpoint' );
 
 // One-time cleanup: the Constant Contact integration was removed. Drop its stored
 // OAuth tokens so no live credentials linger in the database.
