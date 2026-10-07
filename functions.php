@@ -1059,6 +1059,17 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
     update_post_meta( $entry_id, '_ea_skill_level', $skill_level );
     update_post_meta( $entry_id, '_ea_session', $session );
 
+    // Send the booking to the EA Operations app (Free trials tab + contact).
+    // Best-effort: failures are queued and retried; see inc/ea-app-sync.php.
+    $trial_sport = isset( $request['sport'] ) ? sanitize_text_field( wp_unslash( $request['sport'] ) ) : '';
+    if ( '' !== $trial_sport ) {
+        update_post_meta( $entry_id, '_ea_sport', $trial_sport );
+    }
+    ea_app_trial_send( (int) $entry_id, array(
+        'sport'    => $trial_sport,
+        'page_url' => (string) wp_get_referer(),
+    ) );
+
     // 2) Email the admin as a notification (best-effort — the entry is already
     //    saved, so a mail hiccup must not fail the submission). Locally this is
     //    caught by Local's Mailpit (Site → Tools → Open Mailpit).
@@ -1076,7 +1087,8 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
     );
     wp_mail( $to, $subject, $body, $headers );
 
-    $sport = ea_default_sport_value();
+    // The booked program's sport (city pages list several), else the site's.
+    $sport = ea_app_sport_label( $trial_sport ) ?: ea_default_sport_value();
     $confirmation_subject = "We've received your EA {$sport} free trial request";
     $confirmation_body    = "Hi {$name},\n\n"
         . "Thanks for registering for a free trial with EA {$sport}. We received your request with the details below:\n\n"
