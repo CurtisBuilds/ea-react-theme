@@ -1384,7 +1384,7 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
         // Lets the admin hit "Reply" to respond to the registrant.
         'Reply-To: ' . $name . ' <' . $email . '>',
     );
-    wp_mail( $to, $subject, $body, $headers );
+    ea_mail_after_response( $to, $subject, $body, $headers );
 
     // The booked program's sport (city pages list several), else the site's.
     $sport = ea_app_sport_label( $trial_sport ) ?: ea_default_sport_value();
@@ -1400,7 +1400,7 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
         'Content-Type: text/plain; charset=UTF-8',
         'Reply-To: ' . get_option( 'admin_email' ),
     );
-    wp_mail( $email, $confirmation_subject, $confirmation_body, $confirmation_headers );
+    ea_mail_after_response( $email, $confirmation_subject, $confirmation_body, $confirmation_headers );
 
     return new WP_REST_Response( array( 'ok' => true, 'id' => (int) $entry_id ), 200 );
 }
@@ -1937,7 +1937,7 @@ function ea_handle_newsletter( WP_REST_Request $request ) {
         'Content-Type: text/plain; charset=UTF-8',
         'Reply-To: ' . $email,
     );
-    wp_mail( $to, $subject, $body, $headers );
+    ea_mail_after_response( $to, $subject, $body, $headers );
 
     return new WP_REST_Response( array( 'ok' => true, 'id' => (int) $entry_id ), 200 );
 }

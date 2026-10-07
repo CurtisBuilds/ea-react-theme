@@ -442,6 +442,42 @@ add_action( 'switch_theme', function () {
     wp_clear_scheduled_hook( 'ea_app_signup_retry' );
 } );
 
+// ─── Form emails after the response ──────────────────────────────────────────
+// Sending through the site's mail server can take several seconds (≈7 s per
+// email measured on eabadminton.com's SMTP login). The visitor shouldn't wait
+// for that: queue the email, finish the HTTP response, then send.
+
+function ea_mail_after_response( $to, $subject, $message, $headers = '', $attachments = array() ) {
+    global $ea_deferred_mail;
+    if ( ! is_array( $ea_deferred_mail ) ) {
+        $ea_deferred_mail = array();
+        add_action( 'shutdown', 'ea_send_deferred_mail', 0 );
+    }
+    $ea_deferred_mail[] = array( $to, $subject, $message, $headers, $attachments );
+    return true;
+}
+
+function ea_send_deferred_mail() {
+    global $ea_deferred_mail;
+    if ( empty( $ea_deferred_mail ) ) {
+        return;
+    }
+    $queue            = $ea_deferred_mail;
+    $ea_deferred_mail = array();
+
+    // Keep running after the browser has its answer.
+    ignore_user_abort( true );
+    if ( function_exists( 'fastcgi_finish_request' ) ) {
+        fastcgi_finish_request();      // PHP-FPM (SiteGround)
+    } elseif ( function_exists( 'litespeed_finish_request' ) ) {
+        litespeed_finish_request();
+    }
+
+    foreach ( $queue as $mail ) {
+        wp_mail( $mail[0], $mail[1], $mail[2], $mail[3], $mail[4] );
+    }
+}
+
 // One-time cleanup: the Constant Contact integration was removed. Drop its stored
 // OAuth tokens so no live credentials linger in the database.
 add_action( 'admin_init', function () {
