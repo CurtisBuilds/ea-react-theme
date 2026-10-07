@@ -7,6 +7,9 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+// Newsletter → EA Operations app sync (settings: Settings → EA App Sync).
+require_once get_template_directory() . '/inc/ea-app-sync.php';
+
 function ea_react_theme_setup() {
     add_theme_support( 'title-tag' );
     add_theme_support( 'post-thumbnails' );
@@ -810,6 +813,18 @@ function ea_customize_options( $wp_customize ) {
         'type'        => 'textarea',
         'label'       => __( 'Free Trial — session choices', 'ea-react-theme' ),
         'description' => __( 'One choice per line. These populate the "Choose Session" dropdown in the Free Trial form.', 'ea-react-theme' ),
+        'section'     => 'ea_options',
+    ) );
+
+    $wp_customize->add_setting( 'ea_newsletter_notification_emails', array(
+        'default'           => '',
+        'sanitize_callback' => 'sanitize_textarea_field',
+        'transport'         => 'refresh',
+    ) );
+    $wp_customize->add_control( 'ea_newsletter_notification_emails', array(
+        'type'        => 'textarea',
+        'label'       => __( 'Newsletter — notification emails', 'ea-react-theme' ),
+        'description' => __( 'Who gets the "New newsletter signup" alert. Separate multiple addresses with commas. Leave blank to use info@elevationathletics.ca.', 'ea-react-theme' ),
         'section'     => 'ea_options',
     ) );
 
@@ -2043,6 +2058,17 @@ function ea_register_newsletter_route() {
 }
 add_action( 'rest_api_init', 'ea_register_newsletter_route' );
 
+// Recipients for the "New newsletter signup" admin alert. Set in
+// Appearance → Customize → EA Options → "Newsletter — notification emails"
+// (comma/space separated). Blank → info@elevationathletics.ca. This only
+// changes who is notified; storage and the EA app sync are untouched.
+function ea_newsletter_notification_emails() {
+    $raw    = (string) get_theme_mod( 'ea_newsletter_notification_emails', '' );
+    $emails = preg_split( '/[\s,;]+/', $raw );
+    $emails = array_filter( array_map( 'sanitize_email', (array) $emails ), 'is_email' );
+    return $emails ? array_values( array_unique( $emails ) ) : 'info@elevationathletics.ca';
+}
+
 function ea_handle_newsletter( WP_REST_Request $request ) {
     // Spam honeypot — silently accept so bots don't retry, but send nothing.
     if ( ! empty( $request['website'] ) ) {
@@ -2105,13 +2131,19 @@ function ea_handle_newsletter( WP_REST_Request $request ) {
         }
     }
 
-    // Sync newsletter signups to Constant Contact after local storage succeeds.
-    // Best-effort: a Constant Contact outage must not break the front-end form.
-    ea_cc_sync_newsletter_contact( $email, $location, (int) $entry_id, $session_start, $program_summary, $province );
+    // Send the signup to the EA Operations app (marketing contacts) after local
+    // storage succeeds. Best-effort: failures are queued and retried hourly, and
+    // never break the front-end form. See inc/ea-app-sync.php.
+    ea_app_signup_send( (int) $entry_id, $location, array(
+        'province'        => $province,
+        'session_start'   => $session_start,
+        'program_summary' => $program_summary,
+        'page_url'        => (string) wp_get_referer(),
+    ) );
 
     // Notify the admin (best-effort — the entry is already saved). Locally this is
     // caught by Local's Mailpit (Site → Tools → Open Mailpit).
-    $to      = 'mitchell@elevationathletics.ca';
+    $to      = ea_newsletter_notification_emails();
     $subject = 'New newsletter signup';
     $body    = "A newsletter signup was submitted:\n\nEmail: {$email}\n"
              . 'Location: ' . ( '' !== $location ? $location : '(general)' ) . "\n";
