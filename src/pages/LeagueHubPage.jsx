@@ -167,7 +167,7 @@ function isEAorTS(p) {
   return c === 'EA' || c === 'TS';
 }
 
-function rowSportKey(p) {
+export function rowSportKey(p) {
   const s = norm(p.sport || p.Sport || p.SPORT);
   for (const key in SPORTS) {
     if (SPORTS[key].aliases.includes(s)) return key;

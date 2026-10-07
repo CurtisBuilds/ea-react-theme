@@ -24,6 +24,7 @@ import {
   buildCitySummaries,
   citySlug,
   normalizePrograms,
+  rowSportKey,
   siteSport,
   useProgramsFeed,
 } from './LeagueHubPage.jsx';
@@ -180,6 +181,17 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
       });
   }, [programs]);
 
+  // Sport of each session choice, so the booking reaches the EA app under the
+  // right sport (a city page can list several sports).
+  const sessionSport = useMemo(() => {
+    const map = new Map();
+    (programs || []).forEach((program) => {
+      const label = trialSessionOption(program);
+      if (label && !map.has(label)) map.set(label, rowSportKey(program) || '');
+    });
+    return map;
+  }, [programs]);
+
   const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
   const handleSubmit = async (event) => {
@@ -204,6 +216,7 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
         body: JSON.stringify({
           ...form,
           city: cityName,
+          sport: sessionSport.get(form.session) || '',
           source: 'city-programs',
         }),
       });

@@ -1,6 +1,7 @@
 <?php
 /**
- * EA app sync — sends website newsletter signups to the EA Operations app.
+ * EA app sync — sends website newsletter signups and free-trial bookings to the
+ * EA Operations app.
  *
  * Replaces the old Constant Contact push (removed in this release; EA no longer
  * uses Constant Contact).
@@ -79,6 +80,12 @@ function ea_app_signup_sport_code( $value ) {
     return '';
 }
 
+// Display name for a sport code or name ('' if unknown).
+function ea_app_sport_label( $value ) {
+    $labels = array( 'pb' => 'Pickleball', 'bad' => 'Badminton', 'bask' => 'Basketball', 'vball' => 'Volleyball', 's_camp' => 'Sports Camp' );
+    return $labels[ ea_app_signup_sport_code( $value ) ] ?? '';
+}
+
 // The sport a signup belongs to. elevationathletics.ca hosts several sports, so the
 // form's own sport wins; then a "General <Sport>" location; then the page it was
 // made on (/volleyball/, /pickleball/ …); then the site's own sport.
@@ -132,7 +139,7 @@ function ea_app_signup_iso( $timestamp ) {
 
 // ─── Per-entry sync state ────────────────────────────────────────────────────
 // _ea_app_sync = array( '<location or empty>' => array(
-//     status: synced | retry | auth | not_configured | failed,
+//     status: synced | retry | auth | not_configured | waiting | failed,
 //     result, error, attempts, at, submitted_at ) )
 
 function ea_app_signup_state( $entry_id ) {
@@ -157,75 +164,14 @@ function ea_app_signup_entry_locations( $entry_id ) {
     return $locations ? $locations : array( '' );
 }
 
-// ─── Send one signup ─────────────────────────────────────────────────────────
+// ─── Transport: one signed POST to the EA app ────────────────────────────────
 
 /**
- * Post one (entry, location) signup to the EA app. Never throws; the WordPress
- * entry is already saved, so a failure here only marks the entry for retry.
- *
- * @param int    $entry_id ea_newsletter post id.
- * @param string $location City the visitor subscribed to ('' = general signup).
- * @param array  $extra    province, session_start, program_summary, page_url, submitted_at (ISO).
- * @return array The stored state row.
+ * Sign and send one JSON body. Returns the status fields for a state row:
+ * synced | waiting | failed | auth | retry, plus result / error.
  */
-function ea_app_signup_send( $entry_id, $location, $extra = array() ) {
-    $entry_id = (int) $entry_id;
-    $location = (string) $location;
-    $previous = ea_app_signup_state( $entry_id )[ $location ] ?? array();
-
-    if ( ea_app_signup_is_done( $previous ) ) {
-        return $previous;
-    }
-
-    $email = (string) get_post_meta( $entry_id, '_ea_email', true );
-    if ( '' === $email ) {
-        $email = (string) get_the_title( $entry_id );
-    }
-
-    $submitted_at = ! empty( $extra['submitted_at'] )
-        ? (string) $extra['submitted_at']
-        : ( ! empty( $previous['submitted_at'] ) ? (string) $previous['submitted_at'] : ea_app_signup_iso( time() ) );
-
-    $page_url = (string) ( $extra['page_url'] ?? ( $previous['page_url'] ?? '' ) );
-    $sport    = ea_app_signup_sport( $extra['sport'] ?? ( $previous['sport'] ?? '' ), $location, $page_url );
-
-    $row = array(
-        'sport'        => $sport,
-        'page_url'     => $page_url,
-        'status'       => 'retry',
-        'result'       => '',
-        'error'        => '',
-        'attempts'     => (int) ( $previous['attempts'] ?? 0 ) + 1,
-        'at'           => time(),
-        'submitted_at' => $submitted_at,
-    );
-
-    $secret = ea_app_signup_secret();
-    if ( '' === $secret ) {
-        $row['status']   = 'not_configured';
-        $row['error']    = 'No site secret set (Settings → EA App Sync).';
-        $row['attempts'] = (int) ( $previous['attempts'] ?? 0 );
-        ea_app_signup_save_state( $entry_id, $location, $row );
-        return $row;
-    }
-
-    $body = array(
-        'type'            => 'newsletter',
-        'site'            => ea_app_signup_site(),
-        'wp_entry_id'     => $entry_id,
-        'sent_at'         => ea_app_signup_iso( time() ),
-        'submitted_at'    => $submitted_at,
-        'email'           => $email,
-        'location'        => $location,
-        'province'        => (string) ( $extra['province'] ?? '' ),
-        'sport'           => $sport,
-        'session_start'   => (string) ( $extra['session_start'] ?? '' ),
-        'program_summary' => (string) ( $extra['program_summary'] ?? '' ),
-        'page_url'        => $page_url,
-        'consent_text'    => ea_app_signup_consent_text( $location ),
-    );
-    $json = wp_json_encode( $body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
-
+function ea_app_post( $body, $secret ) {
+    $json     = wp_json_encode( $body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
     $response = wp_remote_post( ea_app_signup_url(), array(
         'timeout'     => 4,
         'redirection' => 0,
@@ -239,95 +185,240 @@ function ea_app_signup_send( $entry_id, $location, $extra = array() ) {
         'data_format' => 'body',
     ) );
 
+    $out = array( 'status' => 'retry', 'result' => '', 'error' => '' );
     if ( is_wp_error( $response ) ) {
-        $row['error'] = $response->get_error_message();
-    } else {
-        $code    = (int) wp_remote_retrieve_response_code( $response );
-        $decoded = json_decode( (string) wp_remote_retrieve_body( $response ), true );
-        $decoded = is_array( $decoded ) ? $decoded : array();
+        $out['error'] = $response->get_error_message();
+        return $out;
+    }
+    $code    = (int) wp_remote_retrieve_response_code( $response );
+    $decoded = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+    $decoded = is_array( $decoded ) ? $decoded : array();
 
-        if ( 200 === $code && ! empty( $decoded['ok'] ) ) {
-            $row['status'] = 'synced';
-            $row['result'] = (string) ( $decoded['result'] ?? '' );
-        } elseif ( 400 === $code ) {
-            // Bad data (e.g. invalid_email): retrying will not help.
-            $row['status'] = 'failed';
-            $row['error']  = (string) ( $decoded['error'] ?? 'bad_request' );
-        } elseif ( 401 === $code ) {
-            // Wrong/missing secret on one side. Retried once the secret is fixed.
-            $row['status'] = 'auth';
-            $row['error']  = (string) ( $decoded['error'] ?? 'unauthorized' );
-        } else {
-            $row['error'] = 'HTTP ' . $code;
-        }
+    if ( 200 === $code && ! empty( $decoded['ok'] ) ) {
+        $out['status'] = 'synced';
+        $out['result'] = (string) ( $decoded['result'] ?? '' );
+    } elseif ( 400 === $code && 'unsupported_type' === ( $decoded['error'] ?? '' ) ) {
+        // The app doesn't take this kind of signup yet: keep it for the
+        // "Send unsynced" button instead of giving up on it.
+        $out['status'] = 'waiting';
+        $out['error']  = 'unsupported_type';
+    } elseif ( 400 === $code ) {
+        // Bad data (e.g. invalid_email): retrying will not help.
+        $out['status'] = 'failed';
+        $out['error']  = (string) ( $decoded['error'] ?? 'bad_request' );
+    } elseif ( 401 === $code ) {
+        // Wrong/missing secret on one side. Retried once the secret is fixed.
+        $out['status'] = 'auth';
+        $out['error']  = (string) ( $decoded['error'] ?? 'unauthorized' );
+    } else {
+        $out['error'] = 'HTTP ' . $code;
+    }
+    return $out;
+}
+
+/**
+ * Shared send flow: build the row, send (unless no secret), store, schedule retry.
+ * $build( $row ) returns the JSON body for this signup.
+ */
+function ea_app_send_row( $entry_id, $key, $previous, $row, $build ) {
+    $row['attempts'] = (int) ( $previous['attempts'] ?? 0 ) + 1;
+    $row['at']       = time();
+
+    $secret = ea_app_signup_secret();
+    if ( '' === $secret ) {
+        $row['status']   = 'not_configured';
+        $row['result']   = '';
+        $row['error']    = 'No site secret set (Settings → EA App Sync).';
+        $row['attempts'] = (int) ( $previous['attempts'] ?? 0 );
+    } else {
+        $row = array_merge( $row, ea_app_post( $build( $row ), $secret ) );
     }
 
-    ea_app_signup_save_state( $entry_id, $location, $row );
+    ea_app_signup_save_state( $entry_id, $key, $row );
 
     if ( 'retry' === $row['status'] && ! wp_next_scheduled( 'ea_app_signup_retry' ) ) {
         wp_schedule_event( time() + HOUR_IN_SECONDS, 'hourly', 'ea_app_signup_retry' );
     }
-
     return $row;
 }
 
-// ─── Queue: unsynced (entry, location) pairs, oldest first ───────────────────
+// ─── Newsletter: one send per (entry, city) ──────────────────────────────────
 
-function ea_app_signup_pending( $limit, $statuses = array( 'retry', 'auth', 'not_configured', 'new' ) ) {
-    $ids = get_posts( array(
-        'post_type'      => 'ea_newsletter',
-        'post_status'    => 'publish',
-        'posts_per_page' => -1,
-        'orderby'        => 'date',
-        'order'          => 'ASC',
-        'fields'         => 'ids',
-    ) );
+/**
+ * Post one (entry, location) newsletter signup to the EA app. Never throws; the
+ * WordPress entry is already saved, so a failure only marks it for retry.
+ *
+ * @param int    $entry_id ea_newsletter post id.
+ * @param string $location City the visitor subscribed to ('' = general signup).
+ * @param array  $extra    province, session_start, program_summary, sport, page_url, submitted_at (ISO).
+ */
+function ea_app_signup_send( $entry_id, $location, $extra = array() ) {
+    $entry_id = (int) $entry_id;
+    $location = (string) $location;
+    $previous = ea_app_signup_state( $entry_id )[ $location ] ?? array();
+    if ( ea_app_signup_is_done( $previous ) ) {
+        return $previous;
+    }
 
+    $email = (string) get_post_meta( $entry_id, '_ea_email', true );
+    if ( '' === $email ) {
+        $email = (string) get_the_title( $entry_id );
+    }
+    $page_url = (string) ( $extra['page_url'] ?? ( $previous['page_url'] ?? '' ) );
+    $row      = array(
+        'sport'        => ea_app_signup_sport( $extra['sport'] ?? ( $previous['sport'] ?? '' ), $location, $page_url ),
+        'page_url'     => $page_url,
+        'submitted_at' => ! empty( $extra['submitted_at'] ) ? (string) $extra['submitted_at']
+                        : ( ! empty( $previous['submitted_at'] ) ? (string) $previous['submitted_at'] : ea_app_signup_iso( time() ) ),
+    );
+
+    return ea_app_send_row( $entry_id, $location, $previous, $row, function ( $row ) use ( $entry_id, $email, $location, $extra ) {
+        return array(
+            'type'            => 'newsletter',
+            'site'            => ea_app_signup_site(),
+            'wp_entry_id'     => $entry_id,
+            'sent_at'         => ea_app_signup_iso( time() ),
+            'submitted_at'    => $row['submitted_at'],
+            'email'           => $email,
+            'location'        => $location,
+            'province'        => (string) ( $extra['province'] ?? '' ),
+            'sport'           => $row['sport'],
+            'session_start'   => (string) ( $extra['session_start'] ?? '' ),
+            'program_summary' => (string) ( $extra['program_summary'] ?? '' ),
+            'page_url'        => $row['page_url'],
+            'consent_text'    => ea_app_signup_consent_text( $location ),
+        );
+    } );
+}
+
+// ─── Free trials: one send per booking ───────────────────────────────────────
+
+/**
+ * Post one free-trial booking (ea_free_trial post) to the EA app. Everything
+ * the visitor typed is read back from the saved entry, so retries and the
+ * backfill send exactly what was stored.
+ *
+ * @param array $extra sport, page_url, province, submitted_at (ISO).
+ */
+function ea_app_trial_send( $entry_id, $extra = array() ) {
+    $entry_id = (int) $entry_id;
+    $previous = ea_app_signup_state( $entry_id )[''] ?? array();
+    if ( ea_app_signup_is_done( $previous ) ) {
+        return $previous;
+    }
+
+    $meta     = function ( $key ) use ( $entry_id ) {
+        return (string) get_post_meta( $entry_id, $key, true );
+    };
+    $city     = $meta( '_ea_city' );
+    $page_url = (string) ( $extra['page_url'] ?? ( $previous['page_url'] ?? '' ) );
+    $row      = array(
+        'sport'        => ea_app_signup_sport( $extra['sport'] ?? ( $previous['sport'] ?? $meta( '_ea_sport' ) ), '', $page_url ),
+        'page_url'     => $page_url,
+        'province'     => (string) ( $extra['province'] ?? ( $previous['province'] ?? '' ) ),
+        'submitted_at' => ! empty( $extra['submitted_at'] ) ? (string) $extra['submitted_at']
+                        : ( ! empty( $previous['submitted_at'] ) ? (string) $previous['submitted_at'] : ea_app_signup_iso( time() ) ),
+    );
+
+    return ea_app_send_row( $entry_id, '', $previous, $row, function ( $row ) use ( $entry_id, $meta, $city ) {
+        return array(
+            'type'         => 'free_trial',
+            'site'         => ea_app_signup_site(),
+            'wp_entry_id'  => $entry_id,
+            'sent_at'      => ea_app_signup_iso( time() ),
+            'submitted_at' => $row['submitted_at'],
+            'email'        => $meta( '_ea_email' ),
+            // Name typed on the form: the athlete (often a child), not necessarily
+            // the person who owns the email address.
+            'attendee_name' => (string) get_the_title( $entry_id ),
+            'phone'        => $meta( '_ea_phone' ),
+            'location'     => $city,
+            'province'     => $row['province'],
+            'sport'        => $row['sport'],
+            'age_range'    => $meta( '_ea_age_range' ),
+            'skill_level'  => $meta( '_ea_skill_level' ),
+            'session'      => $meta( '_ea_session' ),
+            'form'         => $meta( '_ea_source' ),
+            'page_url'     => $row['page_url'],
+        );
+    } );
+}
+
+// ─── Queue: unsynced items, oldest first ─────────────────────────────────────
+// Items are array( type, entry_id, key ); key = city for newsletter, '' for trials.
+
+function ea_app_signup_types() {
+    return array(
+        'newsletter' => 'ea_newsletter',
+        'free_trial' => 'ea_free_trial',
+    );
+}
+
+function ea_app_item_keys( $type, $entry_id ) {
+    return 'newsletter' === $type ? ea_app_signup_entry_locations( $entry_id ) : array( '' );
+}
+
+function ea_app_signup_pending( $limit, $statuses = array( 'retry', 'auth', 'not_configured', 'waiting', 'new' ), $types = null ) {
     $queue = array();
-    foreach ( $ids as $entry_id ) {
-        $state = ea_app_signup_state( $entry_id );
-        foreach ( ea_app_signup_entry_locations( $entry_id ) as $location ) {
-            $row    = $state[ $location ] ?? null;
-            $status = $row ? ( $row['status'] ?? 'new' ) : 'new';
-            if ( ! in_array( $status, $statuses, true ) ) {
-                continue;
-            }
-            if ( 'retry' === $status && (int) ( $row['attempts'] ?? 0 ) >= EA_APP_SIGNUP_MAX_ATTEMPTS ) {
-                continue;
-            }
-            $queue[] = array( (int) $entry_id, $location );
-            if ( count( $queue ) >= $limit ) {
-                return $queue;
+    foreach ( ea_app_signup_types() as $type => $post_type ) {
+        if ( $types && ! in_array( $type, (array) $types, true ) ) {
+            continue;
+        }
+        $ids = get_posts( array(
+            'post_type'      => $post_type,
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'orderby'        => 'date',
+            'order'          => 'ASC',
+            'fields'         => 'ids',
+        ) );
+        foreach ( $ids as $entry_id ) {
+            $state = ea_app_signup_state( $entry_id );
+            foreach ( ea_app_item_keys( $type, $entry_id ) as $key ) {
+                $row    = $state[ $key ] ?? null;
+                $status = $row ? ( $row['status'] ?? 'new' ) : 'new';
+                if ( ! in_array( $status, $statuses, true ) ) {
+                    continue;
+                }
+                if ( 'retry' === $status && (int) ( $row['attempts'] ?? 0 ) >= EA_APP_SIGNUP_MAX_ATTEMPTS ) {
+                    continue;
+                }
+                $queue[] = array( $type, (int) $entry_id, $key );
+                if ( count( $queue ) >= $limit ) {
+                    return $queue;
+                }
             }
         }
     }
     return $queue;
 }
 
-function ea_app_signup_send_queued( $entry_id, $location ) {
-    // Backfilled signups keep the date they were made.
-    $extra = array(
-        'submitted_at' => ea_app_signup_iso( (int) get_post_time( 'U', true, $entry_id ) ),
-    );
-    return ea_app_signup_send( $entry_id, $location, $extra );
+// Send one queued item. Backfilled items keep the date they were made.
+function ea_app_send_item( $item, $backfill = false ) {
+    list( $type, $entry_id, $key ) = $item;
+    $extra = $backfill ? array( 'submitted_at' => ea_app_signup_iso( (int) get_post_time( 'U', true, $entry_id ) ) ) : array();
+    return 'free_trial' === $type ? ea_app_trial_send( $entry_id, $extra ) : ea_app_signup_send( $entry_id, $key, $extra );
 }
 
-function ea_app_signup_counts() {
-    $counts = array( 'synced' => 0, 'pending' => 0, 'failed' => 0 );
+function ea_app_signup_counts( $type = 'newsletter' ) {
+    $types  = ea_app_signup_types();
+    $counts = array( 'synced' => 0, 'pending' => 0, 'waiting' => 0, 'failed' => 0 );
     $ids    = get_posts( array(
-        'post_type'      => 'ea_newsletter',
+        'post_type'      => $types[ $type ],
         'post_status'    => 'publish',
         'posts_per_page' => -1,
         'fields'         => 'ids',
     ) );
     foreach ( $ids as $entry_id ) {
         $state = ea_app_signup_state( $entry_id );
-        foreach ( ea_app_signup_entry_locations( $entry_id ) as $location ) {
-            $status = $state[ $location ]['status'] ?? 'new';
+        foreach ( ea_app_item_keys( $type, $entry_id ) as $key ) {
+            $status = $state[ $key ]['status'] ?? 'new';
             if ( 'synced' === $status ) {
                 $counts['synced']++;
             } elseif ( 'failed' === $status ) {
                 $counts['failed']++;
+            } elseif ( 'waiting' === $status ) {
+                $counts['waiting']++;
             } else {
                 $counts['pending']++;
             }
@@ -339,9 +430,8 @@ function ea_app_signup_counts() {
 
 // Hourly retry of signups that failed for a temporary reason.
 add_action( 'ea_app_signup_retry', function () {
-    $queue = ea_app_signup_pending( 50, array( 'retry' ) );
-    foreach ( $queue as $item ) {
-        ea_app_signup_send( $item[0], $item[1] );
+    foreach ( ea_app_signup_pending( 50, array( 'retry' ) ) as $item ) {
+        ea_app_send_item( $item );
     }
     if ( ! ea_app_signup_pending( 1, array( 'retry' ) ) ) {
         wp_clear_scheduled_hook( 'ea_app_signup_retry' );
@@ -399,9 +489,10 @@ add_action( 'admin_post_ea_app_sync_send', function () {
 
     $tally = array();
     foreach ( ea_app_signup_pending( EA_APP_SIGNUP_BATCH ) as $item ) {
-        $row = ea_app_signup_send_queued( $item[0], $item[1] );
-        $key = 'synced' === $row['status'] ? ( $row['result'] ? $row['result'] : 'synced' ) : $row['status'];
-        $tally[ $key ] = ( $tally[ $key ] ?? 0 ) + 1;
+        $row   = ea_app_send_item( $item, true );
+        $label = ( 'free_trial' === $item[0] ? 'free trial ' : '' )
+               . ( 'synced' === $row['status'] ? ( $row['result'] ? $row['result'] : 'synced' ) : $row['status'] );
+        $tally[ $label ] = ( $tally[ $label ] ?? 0 ) + 1;
     }
 
     set_transient( 'ea_app_sync_last_run_' . get_current_user_id(), $tally, 10 * MINUTE_IN_SECONDS );
@@ -419,7 +510,7 @@ function ea_app_signup_settings_page() {
     ?>
     <div class="wrap">
         <h1>EA App Sync</h1>
-        <p>Newsletter signups on this site are saved in WordPress, then sent to the EA Operations app.
+        <p>Newsletter signups and free-trial bookings on this site are saved in WordPress, then sent to the EA Operations app.
            Site name sent: <code><?php echo esc_html( ea_app_signup_site() ); ?></code> · default sport: <code><?php echo esc_html( ea_app_signup_site_sport() ); ?></code></p>
 
         <?php if ( isset( $_GET['saved'] ) ) : ?>
@@ -438,12 +529,15 @@ function ea_app_signup_settings_page() {
         <?php endif; ?>
 
         <h2>Status</h2>
-        <table class="widefat striped" style="max-width:520px">
+        <table class="widefat striped" style="max-width:620px">
+            <thead><tr><th></th><th>Newsletter</th><th>Free trials</th></tr></thead>
             <tbody>
-                <tr><td>Newsletter entries</td><td><?php echo (int) $counts['entries']; ?></td></tr>
-                <tr><td>Signups sent to the app (one per city)</td><td><?php echo (int) $counts['synced']; ?></td></tr>
-                <tr><td>Not sent yet</td><td><?php echo (int) $counts['pending']; ?></td></tr>
-                <tr><td>Rejected by the app (bad data)</td><td><?php echo (int) $counts['failed']; ?></td></tr>
+                <?php $trials = ea_app_signup_counts( 'free_trial' ); ?>
+                <tr><td>Entries in WordPress</td><td><?php echo (int) $counts['entries']; ?></td><td><?php echo (int) $trials['entries']; ?></td></tr>
+                <tr><td>Sent to the app (newsletter: one per city)</td><td><?php echo (int) $counts['synced']; ?></td><td><?php echo (int) $trials['synced']; ?></td></tr>
+                <tr><td>Not sent yet</td><td><?php echo (int) $counts['pending']; ?></td><td><?php echo (int) $trials['pending']; ?></td></tr>
+                <tr><td>Waiting for the app to accept this type</td><td><?php echo (int) $counts['waiting']; ?></td><td><?php echo (int) $trials['waiting']; ?></td></tr>
+                <tr><td>Rejected by the app (bad data)</td><td><?php echo (int) $counts['failed']; ?></td><td><?php echo (int) $trials['failed']; ?></td></tr>
             </tbody>
         </table>
 
@@ -451,7 +545,7 @@ function ea_app_signup_settings_page() {
             <?php wp_nonce_field( 'ea_app_sync_send' ); ?>
             <input type="hidden" name="action" value="ea_app_sync_send">
             <?php submit_button( 'Send unsynced signups (' . (int) EA_APP_SIGNUP_BATCH . ' at a time)', 'primary', 'submit', false, '' === $source ? array( 'disabled' => 'disabled' ) : array() ); ?>
-            <p class="description">Sends signups not yet in the app, oldest first, with their original signup date. Safe to click again: repeats are ignored by the app.</p>
+            <p class="description">Sends newsletter signups, then free trials, not yet in the app — oldest first, with their original date. Safe to click again: repeats are ignored by the app.</p>
         </form>
 
         <h2>Connection</h2>
@@ -515,4 +609,19 @@ add_action( 'manage_ea_newsletter_posts_custom_column', function ( $column, $pos
         $parts[] = ( '' !== $location ? esc_html( $location ) . ': ' : '' ) . esc_html( $label );
     }
     echo implode( '<br>', $parts );
+}, 20, 2 );
+
+// "EA app" column on the Free Trials list.
+add_filter( 'manage_ea_free_trial_posts_columns', function ( $columns ) {
+    $columns['ea_app_sync'] = 'EA app';
+    return $columns;
+}, 20 );
+
+add_action( 'manage_ea_free_trial_posts_custom_column', function ( $column, $post_id ) {
+    if ( 'ea_app_sync' !== $column ) {
+        return;
+    }
+    $row    = ea_app_signup_state( $post_id )[''] ?? null;
+    $status = $row ? $row['status'] : 'not sent';
+    echo esc_html( 'synced' === $status ? 'sent' : ( 'failed' === $status ? 'rejected: ' . $row['error'] : str_replace( '_', ' ', $status ) ) );
 }, 20, 2 );

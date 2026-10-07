@@ -445,6 +445,9 @@ request per city, with the signup's sport — by [inc/ea-app-sync.php](inc/ea-ap
 Status, backfill and the site secret live under **Settings → EA App Sync**.
 Constant Contact is no longer used; its integration has been removed.
 
+Free-trial bookings go the same way (`type: free_trial`, one request per
+booking) right after they are saved, and show in the app's Free trials tab.
+
 Two entry points on the home page:
 
 - **Newsletter section** (bottom) — general signup (no location).
