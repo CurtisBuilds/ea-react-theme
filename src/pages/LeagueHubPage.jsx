@@ -872,16 +872,20 @@ function buildInactiveCitySummaries(cityRecords, activeCityKeys, { search = '', 
   const provinceKey = norm(province);
   const locationKey = norm(location);
   const seen = new Set();
+  // Compare ignoring punctuation/spacing so "St Catharines" (cities.json) and
+  // "St. Catharines" (programs) count as the same city and don't render twice.
+  const matchKey = (v) => norm(v).replace(/[^a-z0-9]+/g, '');
+  const activeMatchKeys = new Set([...activeCityKeys].map(matchKey));
 
   return cityRecords
     .filter((city) => {
       const key = cityRecordKey(city);
-      if (!key || seen.has(key) || activeCityKeys.has(key)) return false;
+      if (!key || seen.has(matchKey(key)) || activeMatchKeys.has(matchKey(key))) return false;
       if (!cityRecordHasPage(city)) return false;
       if (provinceKey && norm(cityRecordProvince(city)) !== provinceKey) return false;
       if (locationKey && locationKey !== key) return false;
       if (q && !cityRecordSearchText(city).includes(q)) return false;
-      seen.add(key);
+      seen.add(matchKey(key));
       return true;
     })
     .map((city) => {
