@@ -15,7 +15,10 @@
  *     carries the cookie in `ea_x` (removed from the address bar on arrival),
  *     and EA domains never count as an external referrer.
  *   - GA4 event `register_click` on every Register / Join Waitlist link:
- *     program_id, city, sport, cta (register|waitlist), page_path. No personal data.
+ *     program_id (EA-PROGRAM-### | external | none), city, sport,
+ *     cta (register|waitlist), page_path. Program cards tag their own button
+ *     (data-ea-program/-cta/-city/-sport); other links fall back to the URL.
+ *     No personal data.
  *
  * Server side:
  *   - Free trial + newsletter: the cookie is read when the visitor submits and
@@ -298,17 +301,32 @@ add_action( 'wp_head', function () {
     if (!href || /^(mailto|tel|javascript):/i.test(href)) return null;
     var u;
     try { u = new URL(a.href, location.href); } catch (e) { return null; }
+    var waitlist = /waitlist/i.test(a.textContent || '');
+    // Program cards carry their own facts (theme 1.0.26+ / 1.0.14+ / 1.0.45+).
+    var card = a.closest('[data-ea-program]');
+    if (card) {
+      return {
+        program_id: card.getAttribute('data-ea-program') || 'external',
+        cta: card.getAttribute('data-ea-cta') || (waitlist ? 'waitlist' : 'register'),
+        city: card.getAttribute('data-ea-city') || '',
+        sport: card.getAttribute('data-ea-sport') || '',
+        tagged: true
+      };
+    }
     var pid = (u.search.match(/EA-PROGRAM-\d+/i) || [''])[0].toUpperCase();
-    var isReg = /\/register(-[a-z-]+)?\/?$/i.test(u.pathname) || !!pid || /^\s*register\b/i.test(a.textContent || '');
-    return isReg ? { program_id: pid, cta: /waitlist/i.test(a.textContent || '') ? 'waitlist' : 'register' } : null;
+    var isReg = /\/register(-[a-z-]+)?\/?$/i.test(u.pathname) || !!pid || /^\s*(register|join waitlist)\b/i.test(a.textContent || '');
+    if (!isReg) return null;
+    var host = u.hostname.replace(/^www\./, '').toLowerCase();
+    if (!pid) pid = EA.test(host) ? 'none' : 'external';
+    return { program_id: pid, cta: waitlist ? 'waitlist' : 'register' };
   }
   function sendRegister(info) {
-    var p = feed && info.program_id ? feed[info.program_id] : null;
+    var p = !info.tagged && feed && /^EA-PROGRAM-/.test(info.program_id) ? feed[info.program_id] : null;
     var params = {
-      program_id: info.program_id || '',
-      city: p ? p.city : '',
-      sport: (p && p.sport) || CFG.sport || '',
-      cta: info.cta,
+      program_id: info.program_id || 'none',
+      city: info.city || (p ? p.city : ''),
+      sport: info.sport || (p && p.sport) || CFG.sport || '',
+      cta: info.cta || 'register',
       page_path: location.pathname,
       transport_type: 'beacon'
     };
@@ -330,7 +348,7 @@ add_action( 'wp_head', function () {
     if (!info || /\/register(-[a-z-]+)?\/?$/i.test(location.pathname)) return;
     a.__eaReg = true; setTimeout(function () { a.__eaReg = false; }, 1000);
     var newTab = a.target === '_blank' || e.metaKey || e.ctrlKey || e.shiftKey;
-    if (feed || !info.program_id || !newTab) { sendRegister(info); return; }
+    if (info.tagged || feed || !/^EA-PROGRAM-/.test(info.program_id) || !newTab) { sendRegister(info); return; }
     // Page stays open (new tab): wait briefly for the city/sport lookup.
     var sent = false;
     function go() { if (!sent) { sent = true; sendRegister(info); } }
