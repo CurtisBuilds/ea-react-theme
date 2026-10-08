@@ -255,6 +255,9 @@ function ea_app_send_row( $entry_id, $key, $previous, $row, $build ) {
 function ea_app_signup_send( $entry_id, $location, $extra = array() ) {
     $entry_id = (int) $entry_id;
     $location = (string) $location;
+    if ( function_exists( 'ea_attr_capture_for_post' ) ) {
+        ea_attr_capture_for_post( $entry_id, $extra );
+    }
     $previous = ea_app_signup_state( $entry_id )[ $location ] ?? array();
     if ( ea_app_signup_is_done( $previous ) ) {
         return $previous;
@@ -287,6 +290,7 @@ function ea_app_signup_send( $entry_id, $location, $extra = array() ) {
             'program_summary' => (string) ( $extra['program_summary'] ?? '' ),
             'page_url'        => $row['page_url'],
             'consent_text'    => ea_app_signup_consent_text( $location ),
+            'attribution'     => function_exists( 'ea_attr_for_post' ) ? ea_attr_for_post( $entry_id ) : null,
         );
     } );
 }
@@ -302,6 +306,9 @@ function ea_app_signup_send( $entry_id, $location, $extra = array() ) {
  */
 function ea_app_trial_send( $entry_id, $extra = array() ) {
     $entry_id = (int) $entry_id;
+    if ( function_exists( 'ea_attr_capture_for_post' ) ) {
+        ea_attr_capture_for_post( $entry_id, $extra );
+    }
     $previous = ea_app_signup_state( $entry_id )[''] ?? array();
     if ( ea_app_signup_is_done( $previous ) ) {
         return $previous;
@@ -340,6 +347,7 @@ function ea_app_trial_send( $entry_id, $extra = array() ) {
             'session'      => $meta( '_ea_session' ),
             'form'         => $meta( '_ea_source' ),
             'page_url'     => $row['page_url'],
+            'attribution'  => function_exists( 'ea_attr_for_post' ) ? ea_attr_for_post( $entry_id ) : null,
         );
     } );
 }

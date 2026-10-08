@@ -9,6 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Newsletter → EA Operations app sync (settings: Settings → EA App Sync).
 require_once get_template_directory() . '/inc/ea-app-sync.php';
+require_once get_template_directory() . '/inc/ea-attribution.php';
 
 function ea_react_theme_setup() {
     add_theme_support( 'title-tag' );
