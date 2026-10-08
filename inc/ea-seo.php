@@ -53,8 +53,16 @@ function ea_seo_skip_request() {
     if ( is_singular() ) {
         $post = get_queried_object();
         if ( $post instanceof WP_Post ) {
+            // An actual form on the page: the [wpforms] shortcode or the WPForms block.
+            // (A mention of "WPForms" in a CSS comment is not a form.)
             $content = (string) $post->post_content;
-            if ( false !== stripos( $content, 'wpforms' ) || has_shortcode( $content, 'wpforms' ) ) {
+            if ( has_shortcode( $content, 'wpforms' ) || false !== strpos( $content, '<!-- wp:wpforms/' )
+                || preg_match( '/\[wpforms[\s\]]/i', $content ) || preg_match( '/\[wpcode[\s\]]/i', $content ) ) {
+                return true;
+            }
+            // Elementor-built pages keep their widgets in post meta.
+            $elementor = (string) get_post_meta( $post->ID, '_elementor_data', true );
+            if ( '' !== $elementor && false !== stripos( $elementor, 'wpforms' ) ) {
                 return true;
             }
         }
