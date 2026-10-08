@@ -40,34 +40,59 @@ function ea_seo_enabled() {
     return '1' === (string) get_option( 'ea_seo_enabled', '1' );
 }
 
-/** True for every request where the module must do nothing. */
-function ea_seo_skip_request() {
+/**
+ * Theme templates that draw the whole page themselves: they never print the
+ * page's stored content and contain no form. On these pages, leftover editor
+ * content (old Elementor data etc.) is invisible, so it is not inspected.
+ */
+function ea_seo_content_free_templates() {
+    return array(
+        'template-city-programs.php',
+        'template-city-programs-free-trial.php',
+        'template-league-hub.php',
+        'template-basketball-guide.php',
+        'template-camps.php',
+        'template-volleyball.php',
+        'template-directory-home.php',
+        'template-community-partnerships.php',
+    );
+}
+
+/** Why this request must be left untouched ('' = go ahead). */
+function ea_seo_skip_reason() {
     if ( is_admin() || wp_doing_ajax() || wp_doing_cron() || is_feed() || is_preview() || is_customize_preview()
         || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) || is_404() ) {
-        return true;
+        return 'not a normal page view';
     }
     $path = strtolower( (string) wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/', PHP_URL_PATH ) );
     if ( preg_match( '#^/(register|registration|checkout|membership)#', $path ) || false !== strpos( $path, 'membership' ) ) {
-        return true;
+        return 'registration / membership address';
     }
     if ( is_singular() ) {
         $post = get_queried_object();
         if ( $post instanceof WP_Post ) {
-            // An actual form on the page: the [wpforms] shortcode or the WPForms block.
+            if ( in_array( (string) get_page_template_slug( $post ), ea_seo_content_free_templates(), true ) ) {
+                return '';
+            }
+            // An actual form in the page content: [wpforms] shortcode, WPForms block, or a WPCode insert.
             // (A mention of "WPForms" in a CSS comment is not a form.)
             $content = (string) $post->post_content;
             if ( has_shortcode( $content, 'wpforms' ) || false !== strpos( $content, '<!-- wp:wpforms/' )
                 || preg_match( '/\[wpforms[\s\]]/i', $content ) || preg_match( '/\[wpcode[\s\]]/i', $content ) ) {
-                return true;
+                return 'page content has a form';
             }
             // Elementor-built pages keep their widgets in post meta.
             $elementor = (string) get_post_meta( $post->ID, '_elementor_data', true );
             if ( '' !== $elementor && false !== stripos( $elementor, 'wpforms' ) ) {
-                return true;
+                return 'Elementor content has a form';
             }
         }
     }
-    return false;
+    return '';
+}
+
+function ea_seo_skip_request() {
+    return '' !== ea_seo_skip_reason();
 }
 
 // ─── Program feed (read-only, cached) ────────────────────────────────────────
@@ -249,7 +274,15 @@ function ea_seo_json_ld( $data ) {
 }
 
 add_action( 'wp_head', function () {
-    if ( ! ea_seo_enabled() || ea_seo_skip_request() ) {
+    if ( ! ea_seo_enabled() ) {
+        return;
+    }
+    $reason = ea_seo_skip_reason();
+    if ( '' !== $reason ) {
+        // Admins only (never cached, never seen by visitors): why this page has no tags.
+        if ( is_user_logged_in() && current_user_can( 'manage_options' ) ) {
+            echo '<!-- EA search tags skipped: ' . esc_html( $reason ) . " -->\n";
+        }
         return;
     }
     try {
@@ -301,7 +334,10 @@ add_action( 'wp_head', function () {
         }
         echo "<!-- /EA search tags -->\n";
     } catch ( \Throwable $e ) {
-        // Never break a page over search tags.
+        // Never break a page over search tags. Admins see why.
+        if ( is_user_logged_in() && current_user_can( 'manage_options' ) ) {
+            echo '<!-- EA search tags error: ' . esc_html( $e->getMessage() ) . " -->\n";
+        }
         return;
     }
 }, 2 );
