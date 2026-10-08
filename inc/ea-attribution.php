@@ -8,7 +8,7 @@
  *       first: first touch, set once and never overwritten
  *       last:  overwritten whenever the visitor arrives with UTMs / gclid /
  *              fbclid or from an external referrer
- *       rt:    recipient token from campaign emails (?rt=)
+ *       rt:    recipient token from campaign emails (?ea_r=, legacy ?rt=)
  *     Each snapshot: utm_source, utm_medium, utm_campaign, utm_content,
  *     utm_term, gclid, fbclid, referrer_host, landing_host, landing_page, ts.
  *   - The three EA sites are one journey: a link from one EA domain to another
@@ -263,7 +263,8 @@ add_action( 'wp_head', function () {
 
   if (!cur.first) cur.first = snapshot();
   if (touch || !cur.last) cur.last = touch ? snapshot() : cur.first;
-  if (q.get('rt')) { cur.rt = clip(q.get('rt')); cur.rt_ts = new Date().toISOString(); }
+  var token = q.get('ea_r') || q.get('rt');
+  if (token) { cur.rt = clip(token); cur.rt_ts = new Date().toISOString(); }
   cur.v = 1;
   write(cur);
   w.eaAttr = { read: read };
