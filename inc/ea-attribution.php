@@ -335,6 +335,28 @@ add_action( 'wp_head', function () {
   }
   function linkFrom(e) { var t = e.target; return t && t.closest ? t.closest('a[href]') : null; }
 
+  // ── carousel_click: which homepage carousel slide was clicked (theme anchors carry data-ea-carousel) ──
+  function trackCarousel(a) {
+    try {
+      var c = a.closest('[data-ea-carousel]');
+      if (!c || a.__eaCar) return;
+      a.__eaCar = true; setTimeout(function () { a.__eaCar = false; }, 1000);
+      var u = new URL(a.href, location.href);
+      var img = a.querySelector('img');
+      var file = '';
+      if (img) { try { file = new URL(img.currentSrc || img.src, location.href).pathname.split('/').pop(); } catch (e2) {} }
+      var params = {
+        carousel_slot: String(c.getAttribute('data-ea-carousel') || ''),
+        carousel_link: (u.hostname.replace(/^www\./, '') + u.pathname).slice(0, 100),
+        carousel_image: file.slice(0, 100),
+        page_path: location.pathname,
+        transport_type: 'beacon'
+      };
+      if (typeof w.gtag === 'function') w.gtag('event', 'carousel_click', params);
+      else (w.dataLayer = w.dataLayer || []).push(['event', 'carousel_click', params]);
+    } catch (e) {}
+  }
+
   d.addEventListener('pointerover', function (e) { var a = linkFrom(e); if (a && registerInfo(a)) loadFeed(); }, { passive: true });
   d.addEventListener('focusin', function (e) { var a = linkFrom(e); if (a && registerInfo(a)) loadFeed(); });
   d.addEventListener('touchstart', function (e) { var a = linkFrom(e); if (a && registerInfo(a)) loadFeed(); }, { passive: true });
@@ -343,7 +365,9 @@ add_action( 'wp_head', function () {
     var a = linkFrom(e);
     if (!a) return;
     decorate(a);
-    if (e.type !== 'click' || a.__eaReg) return;
+    if (e.type !== 'click') return;
+    trackCarousel(a);
+    if (a.__eaReg) return;
     var info = registerInfo(a);
     if (!info || /\/register(-[a-z-]+)?\/?$/i.test(location.pathname)) return;
     a.__eaReg = true; setTimeout(function () { a.__eaReg = false; }, 1000);

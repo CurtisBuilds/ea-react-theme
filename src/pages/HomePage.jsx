@@ -171,7 +171,7 @@ function LinkedCarousel({ slides, alt = '', ratio = '3 / 4', autoPlay = false, i
             transition: 'opacity .4s ease',
           };
           return slide.href ? (
-            <a key={slideIndex} target="_blank" rel="noopener noreferrer" href={slide.href} style={{ ...sharedStyle, display: 'block' }}>
+            <a key={slideIndex} data-ea-carousel={slide.slot || slideIndex + 1} target="_blank" rel="noopener noreferrer" href={slide.href} style={{ ...sharedStyle, display: 'block' }}>
               {image}
             </a>
           ) : (
@@ -211,16 +211,16 @@ function NewProgramsSection({ DS, isMobile, t }) {
   // Slides for the carousel — admin-set Customizer photos (EA Images → Carousel
   // image 1–3) when present, else the bundled program photos so it's never empty.
   const carouselSlides = [
-    { src: t.images.carousel1 || t.asset('hero.png'), href: t.carouselLinks.carousel1 },
-    { src: t.images.carousel2 || t.asset('net.png'), href: t.carouselLinks.carousel2 },
-    { src: t.images.carousel3 || t.asset('birdie.png'), href: t.carouselLinks.carousel3 },
+    { slot: 1, src: t.images.carousel1 || t.asset('hero.png'), href: t.carouselLinks.carousel1 },
+    { slot: 2, src: t.images.carousel2 || t.asset('net.png'), href: t.carouselLinks.carousel2 },
+    { slot: 3, src: t.images.carousel3 || t.asset('birdie.png'), href: t.carouselLinks.carousel3 },
   ].filter((slide) => slide.src);
   const carouselImages = carouselSlides.map((slide) => slide.src);
   const hasCarouselLinks = carouselSlides.some((slide) => slide.href);
 
   const fallbackCarouselImage = carouselSlides[0] ? (
     carouselSlides[0].href ? (
-      <a href={carouselSlides[0].href} target="_blank" rel="noopener noreferrer" style={{ display: 'block', width: '100%', maxWidth: 380 }}>
+      <a href={carouselSlides[0].href} data-ea-carousel={carouselSlides[0].slot || 1} target="_blank" rel="noopener noreferrer" style={{ display: 'block', width: '100%', maxWidth: 380 }}>
         <img src={carouselSlides[0].src} alt="Our new programs" style={{ width: '100%', aspectRatio: '4 / 5', objectFit: 'cover', display: 'block' }} />
       </a>
     ) : (
