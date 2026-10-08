@@ -21,7 +21,9 @@
  *   - Free trial + newsletter: the cookie is read when the visitor submits and
  *     saved on the entry (_ea_attribution); the website-signup payload carries it
  *     as `attribution` (null when there was no cookie).
- *   - WPForms registrations: saved on the entry at submit, then added to the
+ *   - WPForms registrations: saved on the entry at submit and added to every
+ *     wpforms-webhook request (the elevationathletics.ca sync snippet and, if
+ *     used, the Webhooks addon). Previously documented path:
  *     wpforms-webhook body as `attribution` when the Webhooks addon sends it
  *     (it sends from a background task, where the visitor's cookie is gone).
  *
@@ -146,6 +148,37 @@ add_filter( 'wpforms_webhooks_process_delivery_request_options', function ( $opt
     }
     return $options;
 }, 10, 5 );
+
+/**
+ * elevationathletics.ca posts registrations itself (WPCode snippet "EA
+ * Registration webhook (sync)", wp_remote_post during the visitor's submit),
+ * not through the Webhooks addon. Add `attribution` to any wpforms-webhook
+ * request that doesn't carry it yet: saved entry first, else this request's cookie.
+ */
+add_filter( 'http_request_args', function ( $args, $url ) {
+    if ( false === strpos( (string) $url, '/functions/v1/wpforms-webhook' ) || empty( $args['body'] ) || ! is_string( $args['body'] ) ) {
+        return $args;
+    }
+    $body = json_decode( $args['body'], true );
+    if ( ! is_array( $body ) || array_key_exists( 'attribution', $body ) ) {
+        return $args;
+    }
+    $attr     = null;
+    $entry_id = isset( $body['wpforms_entry_id'] ) ? (int) $body['wpforms_entry_id'] : 0;
+    if ( $entry_id > 0 ) {
+        $saved = get_transient( 'ea_attr_wpf_' . $entry_id );
+        $attr  = is_string( $saved ) ? json_decode( $saved, true ) : null;
+    }
+    if ( ! is_array( $attr ) && ! wp_doing_cron() ) {
+        $attr = ea_attr_from_request();
+    }
+    $body['attribution'] = is_array( $attr ) ? $attr : null;
+    $encoded             = wp_json_encode( $body );
+    if ( is_string( $encoded ) ) {
+        $args['body'] = $encoded;
+    }
+    return $args;
+}, 10, 2 );
 
 // ─── Browser script ──────────────────────────────────────────────────────────
 
