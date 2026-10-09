@@ -114,6 +114,10 @@ add_action( 'wp_head', function () {
   var CFG = <?php echo wp_json_encode( $cfg ); ?>;
   !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(w,d,'script','https://connect.facebook.net/en_US/fbevents.js');
   var ID = CFG.id;
+  // Turn off Meta's automatic configuration BEFORE init: it scrapes form fields (name/email/phone)
+  // on button clicks for automatic advanced matching, and on our React trial forms that left the
+  // Pixel silently dropping every later event (incl. Schedule). Also stops SubscribedButtonClick.
+  w.fbq('set', 'autoConfig', false, ID);
   w.fbq('init', ID);
   function send(kind, name, params, opts) {
     try { if (opts && opts.eventID) w.fbq(kind, ID, name, params || {}, { eventID: String(opts.eventID) }); else w.fbq(kind, ID, name, params || {}); } catch (e) {}
