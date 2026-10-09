@@ -192,6 +192,20 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
     return map;
   }, [programs]);
 
+  // Session id + venue of each choice, for the Meta/GA trial event.
+  const sessionMeta = useMemo(() => {
+    const map = new Map();
+    (programs || []).forEach((program) => {
+      const label = trialSessionOption(program);
+      if (!label || map.has(label)) return;
+      const d = nextAvailableSessionDate(program);
+      const id = String(program.ProgramID || program.ListingCode || '').trim();
+      const day = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : '';
+      map.set(label, { sessionId: id && day ? `${id}@${day}` : id, venue: program.LocationName || program.City || '', level: levelLabel(program) || '' });
+    });
+    return map;
+  }, [programs]);
+
   const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
   const handleSubmit = async (event) => {
@@ -218,6 +232,8 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
           city: cityName,
           sport: sessionSport.get(form.session) || '',
           source: 'city-programs',
+          sessionId: (sessionMeta.get(form.session) || {}).sessionId || '',
+          venue: (sessionMeta.get(form.session) || {}).venue || '',
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -226,6 +242,7 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
       }
 
       setSubmitted(true);
+      if (window.eaTrackTrial) window.eaTrackTrial(data.track);
       setForm({ name: '', email: '', phone: '', session: '', website: '' });
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');

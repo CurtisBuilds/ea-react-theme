@@ -2516,6 +2516,11 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
     update_post_meta( $entry_id, '_ea_age_range', $age_range );
     update_post_meta( $entry_id, '_ea_session', $session );
     update_post_meta( $entry_id, '_ea_source', $source );
+    // Session id (ProgramID@date) + venue sent by the form; used for the Meta/GA trial event and reminders.
+    $session_id = isset( $request['sessionId'] ) ? sanitize_text_field( wp_unslash( $request['sessionId'] ) ) : '';
+    $venue      = isset( $request['venue'] ) ? sanitize_text_field( wp_unslash( $request['venue'] ) ) : '';
+    update_post_meta( $entry_id, '_ea_session_id', $session_id );
+    update_post_meta( $entry_id, '_ea_venue', $venue );
 
     // Send the booking to the EA Operations app (Free trials tab + contact).
     // Best-effort: failures are queued and retried; see inc/ea-app-sync.php.
@@ -2565,7 +2570,8 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
     );
     ea_mail_after_response( $email, $confirmation_subject, $confirmation_body, $confirmation_headers );
 
-    return new WP_REST_Response( array( 'ok' => true, 'id' => (int) $entry_id ), 200 );
+    $track = function_exists( 'ea_trial_track' ) ? ea_trial_track( (int) $entry_id ) : null;
+    return new WP_REST_Response( array( 'ok' => true, 'id' => (int) $entry_id, 'track' => $track ), 200 );
 }
 
 function ea_free_trial_reply_to_email( $source = '' ) {

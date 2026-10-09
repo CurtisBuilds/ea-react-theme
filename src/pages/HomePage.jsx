@@ -470,6 +470,13 @@ function weekdayLabel(date) {
   return date.toLocaleDateString('en-US', { weekday: 'long' });
 }
 
+// Stable id for one trial date: program id + ISO day (e.g. EA-PROGRAM-123@2026-10-14).
+function trialSessionId(p, date) {
+  const id = String((p && (p.ProgramID || p.ListingCode)) || '').trim();
+  if (!id || !(date instanceof Date) || isNaN(date)) return '';
+  return `${id}@${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 function trialSessionLabel(p, date) {
   const dateLabel = date
     ? `${weekdayLabel(date)}, ${formatProgramDate(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`)}`
@@ -511,7 +518,7 @@ function buildTrialSessionChoices(rows, sports) {
       const key = `${ageRange}|${date.getTime()}|${program.Time}|${program.LocationName || program.City}`;
       if (seen.has(key)) return;
       seen.add(key);
-      choices.push({ ageRange, label, date: date.getTime() });
+      choices.push({ ageRange, label, date: date.getTime(), sessionId: trialSessionId(program, date), venue: program.LocationName || program.City || '' });
     });
   });
 
@@ -557,16 +564,18 @@ function FreeTrialSection({ DS, isMobile, t }) {
 
     setSending(true);
     try {
+      const picked = trialChoices.find((choice) => choice.label === form.session && choice.ageRange === form.ageRange) || {};
       const res = await fetch(`${t.apiUrl}ea/v1/free-trial`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': t.nonce },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, sessionId: picked.sessionId || '', venue: picked.venue || '' }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data && data.message ? data.message : 'Something went wrong. Please try again.');
       }
       setSubmitted(true);
+      if (window.eaTrackTrial) window.eaTrackTrial(data.track);
       setForm({ name: '', email: '', phone: '', ageRange: '', session: '', website: '' });
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
@@ -613,7 +622,7 @@ function FreeTrialSection({ DS, isMobile, t }) {
   ) : null;
 
   const formInner = (
-    <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 440 }}>
+    <form id="free-trial" onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 440, scrollMarginTop: 140 }}>
       <div>
         <label style={labelStyle} htmlFor="ft-name">{t.texts.freeTrialNameLabel || 'Athlete\'s Name'}</label>
         <input id="ft-name" style={inputStyle} placeholder="Name" value={form.name} onChange={update('name')} />
