@@ -298,6 +298,20 @@ function NavSection({ DS, t, isMobile }) {
     const el = typeof document !== 'undefined' && document.getElementById('site-footer');
     if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth' }); }
   };
+  // Landing pages (overrides.minimal): logo only, not linked, so nothing leads away from the form.
+  if (overrides.minimal) {
+    return (
+      <header style={{
+        position: 'sticky', top: 0, left: 0, right: 0, zIndex: 50,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: isMobile ? 56 : 72, boxSizing: 'border-box', padding: isMobile ? '0 18px' : '0 40px',
+        background: 'var(--ea-white, #fff)', borderBottom: '1px solid var(--border-card, #E5E5E5)',
+      }}>
+        <img src={logoUrl || t.asset('ea-logo.svg')} alt="Elevation Athletics" style={{ display: 'block', height: isMobile ? 34 : 44, width: 'auto' }} />
+      </header>
+    );
+  }
+
   const contact = (
     <a href="#site-footer" onClick={scrollToFooter} style={{ ...linkStyle, display: 'inline-flex', alignItems: 'center' }}>{t.texts.navConnect || 'Connect with us'}</a>
   );

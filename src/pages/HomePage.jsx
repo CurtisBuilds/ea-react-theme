@@ -480,7 +480,7 @@ function addDays(date, days) {
   return out;
 }
 
-function buildTrialSessionChoices(rows, sports) {
+export function buildTrialSessionChoices(rows, sports) {
   const allow = new Set(sports && sports.length ? sports : ['bad']);
   const seen = new Set();
   const earliest = addDays(todayStart(), 7);
@@ -516,7 +516,7 @@ function buildTrialSessionChoices(rows, sports) {
 
 // Free Trial registration form. Shown in place of the carousel when the
 // Customizer toggle "Show photo carousel" is unchecked (options.useCarousel = false).
-function FreeTrialSection({ DS, isMobile, t }) {
+export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', onSessionPick }) {
   const { Button, SectionHeading } = DS;
   const [form, setForm] = useState({ name: '', email: '', phone: '', skillLevel: '', session: '', website: '' });
   const [submitted, setSubmitted] = useState(false);
@@ -557,7 +557,7 @@ function FreeTrialSection({ DS, isMobile, t }) {
       const res = await fetch(`${t.apiUrl}ea/v1/free-trial`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': t.nonce },
-        body: JSON.stringify({ ...form, sessionId: picked.sessionId || '', venue: picked.venue || '' }),
+        body: JSON.stringify({ ...form, sessionId: picked.sessionId || '', venue: picked.venue || '', ...(variant === 'landing' ? { source: 'free-trial-page' } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -597,6 +597,12 @@ function FreeTrialSection({ DS, isMobile, t }) {
 
   // Heading text. On mobile it matches the other section headers (SectionHeading "lg");
   // on desktop it's overlaid on top of the illustration in the left column.
+  useEffect(() => {
+    if (typeof onSessionPick !== 'function') return;
+    const picked = trialChoices.find((choice) => choice.label === form.session && choice.skillLevel === form.skillLevel) || null;
+    onSessionPick(picked);
+  }, [form.session, form.skillLevel]);
+
   const headingText = t.texts.freeTrialHeading || 'Register for your free trial!';
   const subheadingText = t.texts.freeTrialSubheading || '';
   const mobileHeading = SectionHeading
@@ -693,6 +699,20 @@ function FreeTrialSection({ DS, isMobile, t }) {
       </div>
     </div>
   ) : null;
+
+  // ── Landing page (/free-trial/): short headline, then the form — nothing else above it ──
+  if (variant === 'landing') {
+    return (
+      <section style={{ maxWidth: 520, margin: '0 auto', padding: isMobile ? '14px 20px 8px' : '40px 24px 16px', boxSizing: 'border-box' }}>
+        <h1 style={{ ...FB.h(isMobile ? 26 : 38), fontWeight: 'var(--fw-regular, 400)', textAlign: 'center', margin: '0 0 6px' }}>{title || headingText}</h1>
+        {subheadingText && (
+          <p style={{ margin: '0 auto', textAlign: 'center', maxWidth: 440, fontFamily: 'var(--font-body, "Inclusive Sans", sans-serif)', fontSize: isMobile ? 15 : 16, lineHeight: 1.4, color: 'var(--ea-ink, #1E526E)' }}>{subheadingText}</p>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: isMobile ? 12 : 20 }}>{formInner}</div>
+        {modal}
+      </section>
+    );
+  }
 
   // ── Mobile: heading (consistent with other sections) → form → full-bleed SVG ──
   if (isMobile) {
@@ -1049,7 +1069,7 @@ function buildProgramList(programs, sports, userCoords) {
 }
 
 // Fetch the raw rows once on mount; returns null while loading or on error.
-function useProgramsFeed() {
+export function useProgramsFeed() {
   const [rows, setRows] = useState(null);
   useEffect(() => {
     let alive = true;

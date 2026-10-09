@@ -14,6 +14,7 @@ import FAQPage  from './pages/FAQ.jsx';
 import BlankContentPage from './pages/BlankContentPage.jsx';
 import LeagueHubPage from './pages/LeagueHubPage.jsx';
 import CityProgramsPage from './pages/CityProgramsPage.jsx';
+import FreeTrialLandingPage from './pages/FreeTrialLandingPage.jsx';
 
 const PAGES = {
   home:      HomePage,
@@ -21,6 +22,7 @@ const PAGES = {
   blank:     BlankContentPage,
   leagueHub: LeagueHubPage,
   cityPrograms: CityProgramsPage,
+  freeTrialLanding: FreeTrialLandingPage,
 };
 
 const el = document.getElementById('ea-react-root');
