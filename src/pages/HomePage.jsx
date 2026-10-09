@@ -1176,13 +1176,13 @@ function inferProgramTypeLabel(p) {
 
 function statusLabels(p) {
   const labels = [];
-  labels.push(isEnrollmentOpen(p) ? 'Enrollment Open' : 'Enrollment Closed');
+  if (isFullProgram(p)) labels.push('Full');   // full: "Full" replaces the enrollment chip
+  else labels.push(isEnrollmentOpen(p) ? 'Enrollment Open' : 'Enrollment Closed');
   labels.push(isStartingSoon(p) ? 'Starting Soon' : 'In Progress');
   const level = inferLevelLabel(p);
   const type = inferProgramTypeLabel(p);
   if (level) labels.push(level);
   if (type) labels.push(type);
-  if (isFullProgram(p)) labels.push('Full');
   return labels;
 }
 
@@ -1221,10 +1221,7 @@ function ProgramChip({ label }) {
 
 function cleanProgramTitle(p) {
   const title = String(p.Title || 'Basketball Program').trim();
-  return title
-    .replace(/\s*-\s*/g, ' – ')
-    .replace(/\((\d+\s*[-–]\s*\d+)\)/g, '($1 yrs)')
-    .replace(/\byrs yrs\b/i, 'yrs');
+  return title;   // shown exactly as sent in the feed
 }
 
 function programMetaLine(p) {

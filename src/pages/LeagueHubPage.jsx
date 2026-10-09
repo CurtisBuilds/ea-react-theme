@@ -449,13 +449,15 @@ export function statusLabels(p) {
     return labels;
   }
 
+  // A full program shows "Full" instead of the enrollment chip ("Enrollment Open" + "Full" contradicts itself).
+  const full = isFullProgram(p);
   const labels = [
-    isEnrollmentOpen(p) ? 'Enrollment Open' : 'Enrollment Closed',
+    full ? null : (isEnrollmentOpen(p) ? 'Enrollment Open' : 'Enrollment Closed'),
     isStartingSoon(p) ? 'Starting Soon' : 'In Progress',
     levelLabel(p),
     typeLabel(p),
-  ];
-  if (isFullProgram(p)) labels.push('Full');
+  ].filter(Boolean);
+  if (full) labels.unshift('Full');
   return labels;
 }
 
@@ -494,10 +496,7 @@ export function ProgramChip({ label }) {
 
 function cleanProgramTitle(p) {
   return String(p.Title || 'Basketball Program')
-    .trim()
-    .replace(/\s*-\s*/g, ' – ')
-    .replace(/\((\d+\s*[-–]\s*\d+)\)/g, '($1 yrs)')
-    .replace(/\byrs yrs\b/i, 'yrs');
+    .trim();   // shown exactly as sent in the feed
 }
 
 function programMetaLine(p) {
