@@ -10,11 +10,16 @@ import { useState } from 'react';
 import { Layout, useDSComponents, useViewport, getThemeData, FB } from '../lib/shared.jsx';
 import { FreeTrialSection, buildTrialSessionChoices, useProgramsFeed } from './HomePage.jsx';
 
+// Read once: React replaces #ea-react-root's children on first commit, so later
+// re-renders (e.g. when the programs feed arrives) can no longer see the <template>.
+let PAGE_DATA = null;
 function pageData() {
+  if (PAGE_DATA) return PAGE_DATA;
   if (typeof document === 'undefined') return { title: '', html: '' };
   const root = document.getElementById('ea-react-root');
   const tpl = document.getElementById('ea-free-trial-content');
-  return { title: root ? root.dataset.title || '' : '', html: tpl ? tpl.innerHTML : '' };
+  PAGE_DATA = { title: root ? root.dataset.title || '' : '', html: tpl ? tpl.innerHTML : '' };
+  return PAGE_DATA;
 }
 
 function VenueMap({ venue, city, isMobile }) {
