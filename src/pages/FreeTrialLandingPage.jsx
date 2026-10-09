@@ -91,6 +91,34 @@ const FT_CSS = `
 .ea-ft-qa h3{margin:0 0 6px}
 `;
 
+// Line under the headline: "Ages 6–14 · Trinity United Church, Newmarket".
+// Built from the free-trial programs in the feed, so it follows venue/age changes.
+// Town: the feed City, unless it lists two towns ("Newmarket and Aurora") — then the
+// town the program title starts with ("Aurora - …").
+function trialSubline(rows, sports) {
+  const allow = new Set(sports);
+  const trial = (rows || []).filter((r) => {
+    const flag = String(r.Trial ?? r.trial ?? r.FreeTrial ?? r.free_trial ?? '').trim().toLowerCase();
+    return ['y', 'yes', 'true', '1'].includes(flag) && !r.is_cancelled && allow.has(String(r.Sport || r.sport || '').toLowerCase());
+  });
+  if (!trial.length) return '';
+  const nums = (k) => trial.map((r) => parseInt(r[k], 10)).filter((n) => !isNaN(n));
+  const mins = nums('MinAge');
+  const maxs = nums('MaxAge');
+  const ages = mins.length && maxs.length ? `Ages ${Math.min(...mins)}–${Math.max(...maxs)}` : '';
+  const venues = [];
+  trial.forEach((r) => {
+    const venue = String(r.LocationName || '').trim();
+    if (!venue) return;
+    const city = String(r.City || '').trim();
+    const prefix = String(r.Title || '').split(' - ')[0].trim();
+    const town = /\sand\s|&|\//i.test(city) && prefix ? prefix : city;
+    const label = town ? `${venue}, ${town}` : venue;
+    if (!venues.includes(label)) venues.push(label);
+  });
+  return [ages, venues.join(' or ')].filter(Boolean).join(' · ');
+}
+
 function VenueMap({ venue, city, isMobile }) {
   if (!venue) return null;
   const q = encodeURIComponent([venue, city, 'ON'].filter(Boolean).join(', '));
@@ -131,7 +159,7 @@ export default function FreeTrialLandingPage() {
 
   return (
     <Layout overrides={{ minimal: true }}>
-      <FreeTrialSection DS={DS} isMobile={isMobile} t={t} variant="landing" title={title} onSessionPick={setPicked} />
+      <FreeTrialSection DS={DS} isMobile={isMobile} t={t} variant="landing" title={title} subline={trialSubline(rows, ['bask'])} onSessionPick={setPicked} />
       {sections.length > 0 && (
         <div className="ea-free-trial-content" style={{ marginTop: isMobile ? 24 : 40 }}>
           <style>{FT_CSS}</style>
