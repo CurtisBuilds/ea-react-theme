@@ -516,7 +516,7 @@ export function buildTrialSessionChoices(rows, sports) {
 
 // Free Trial registration form. Shown in place of the carousel when the
 // Customizer toggle "Show photo carousel" is unchecked (options.useCarousel = false).
-export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', onSessionPick }) {
+export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', subline = '', onSessionPick }) {
   const { Button, SectionHeading } = DS;
   const [form, setForm] = useState({ name: '', email: '', phone: '', skillLevel: '', session: '', website: '' });
   const [submitted, setSubmitted] = useState(false);
@@ -672,8 +672,8 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', on
 
       <div style={{ marginTop: compact ? 16 : 24, display: 'flex', justifyContent: isMobile ? 'center' : 'flex-start' }}>
         {Button
-          ? <Button variant="dark" type="submit" disabled={sending} style={freeTrialButtonStyle}>{sending ? 'Registering…' : (t.texts.freeTrialSubmit || 'Register')}</Button>
-          : <button type="submit" disabled={sending} style={{ ...FB.btn('primary'), ...freeTrialButtonStyle, background: 'var(--ea-teal-900, #004356)', opacity: sending ? 0.7 : 1, cursor: sending ? 'default' : 'pointer' }}>{sending ? 'Registering…' : (t.texts.freeTrialSubmit || 'Register')}</button>
+          ? <Button variant="dark" type="submit" disabled={sending} style={freeTrialButtonStyle}>{sending ? 'Registering…' : (variant === 'landing' ? 'Book free trial' : (t.texts.freeTrialSubmit || 'Register'))}</Button>
+          : <button type="submit" disabled={sending} style={{ ...FB.btn('primary'), ...freeTrialButtonStyle, background: 'var(--ea-teal-900, #004356)', opacity: sending ? 0.7 : 1, cursor: sending ? 'default' : 'pointer' }}>{sending ? 'Registering…' : (variant === 'landing' ? 'Book free trial' : (t.texts.freeTrialSubmit || 'Register'))}</button>
         }
       </div>
     </form>
@@ -708,8 +708,8 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', on
     return (
       <section style={{ maxWidth: 520, margin: '0 auto', padding: isMobile ? '14px 20px 8px' : '40px 24px 16px', boxSizing: 'border-box' }}>
         <h1 style={{ ...FB.h(isMobile ? 26 : 38), fontWeight: 'var(--fw-regular, 400)', textAlign: 'center', margin: '0 0 6px' }}>{title || headingText}</h1>
-        {subheadingText && (
-          <p style={{ margin: '0 auto', textAlign: 'center', maxWidth: 440, fontFamily: 'var(--font-body, "Inclusive Sans", sans-serif)', fontSize: isMobile ? 15 : 16, lineHeight: 1.4, color: 'var(--ea-ink, #1E526E)' }}>{subheadingText}</p>
+        {(subline || subheadingText) && (
+          <p style={{ margin: '0 auto', textAlign: 'center', maxWidth: 440, fontWeight: subline ? 600 : undefined, fontFamily: 'var(--font-body, "Inclusive Sans", sans-serif)', fontSize: isMobile ? 15 : 16, lineHeight: 1.4, color: 'var(--ea-ink, #1E526E)' }}>{subline || subheadingText}</p>
         )}
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: isMobile ? 12 : 20 }}>{formInner}</div>
         {modal}
