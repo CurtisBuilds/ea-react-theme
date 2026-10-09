@@ -6,6 +6,7 @@ import {
   normalizePrograms,
   useProgramsFeed,
 } from './LeagueHubPage.jsx';
+import { slugify } from '../data/cities.js';
 
 const DEFAULT_NAV_ROWS = [
   'Programs|#volleyball-programs',
@@ -62,6 +63,18 @@ function actionLink(value, fallback) {
   return { url: href };
 }
 
+// Town page (/volleyball/innisfil/) vs hub (/volleyball/): set by template-volleyball.php.
+function volleyballRoute() {
+  const root = typeof document !== 'undefined' ? document.getElementById('ea-react-root') : null;
+  let towns = {};
+  try { towns = JSON.parse((root && root.dataset.towns) || '{}') || {}; } catch (e) { towns = {}; }
+  return { town: slugify((root && root.dataset.town) || ''), hubUrl: (root && root.dataset.hubUrl) || '/volleyball/', towns };
+}
+
+function programTownSlug(program) {
+  return slugify(program.City || program.city || '');
+}
+
 export default function VolleyballPage() {
   const DS = useDSComponents();
   const { isMobile } = useViewport();
@@ -69,10 +82,16 @@ export default function VolleyballPage() {
   const v = t.volleyball || {};
   const { rows, status } = useProgramsFeed();
 
+  const route = useMemo(volleyballRoute, []);
   const programs = useMemo(
-    () => normalizePrograms(rows || [], ['vball'], null).filter((program) => !program._comingSoon),
-    [rows]
+    () => normalizePrograms(rows || [], ['vball'], null)
+      .filter((program) => !program._comingSoon)
+      .filter((program) => !route.town || programTownSlug(program) === route.town),
+    [rows, route.town]
   );
+  const townName = route.town
+    ? (programs[0] && String(programs[0].City || '').trim()) || route.town.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join('-')
+    : '';
   const groupedPrograms = useMemo(() => {
     const groups = new Map();
     programs.forEach((program) => {
@@ -83,6 +102,7 @@ export default function VolleyballPage() {
         groups.set(key, {
           key,
           title: cityDisplayName(city, province),
+          href: route.town ? '' : (route.towns[slugify(city)] || ''),
           programs: [],
         });
       }
@@ -125,7 +145,7 @@ export default function VolleyballPage() {
             />
           )}
           <h1 style={{ ...FB.h(isMobile ? 52 : 78), textAlign: 'center' }}>
-            {pick(v.heroHeading, 'Play Volleyball in Canada')}
+            {townName ? `Volleyball in ${townName}` : pick(v.heroHeading, 'Play Volleyball in Canada')}
           </h1>
           <p style={{
             margin: isMobile ? '16px auto 0' : '22px auto 0',
@@ -136,7 +156,7 @@ export default function VolleyballPage() {
             color: 'var(--ea-ink, #1E526E)',
             whiteSpace: 'pre-line',
           }}>
-            {pick(v.heroSubheading, 'Find youth volleyball programs run by Elevation Athletics and our community partners. Browse upcoming sessions by city and register for the program that fits your schedule.')}
+            {townName ? `Youth volleyball programs in ${townName}, run by Elevation Athletics with our community partners. Pick a session below and register.` : pick(v.heroSubheading, 'Find youth volleyball programs run by Elevation Athletics and our community partners. Browse upcoming sessions by city and register for the program that fits your schedule.')}
           </p>
           <div style={{
             display: 'grid',
@@ -145,8 +165,10 @@ export default function VolleyballPage() {
             maxWidth: 680,
             margin: isMobile ? '28px auto 0' : '36px auto 0',
           }}>
-            <ActionButton DS={DS} link={actionLink(v.primaryButtonUrl, '#volleyball-programs')} full>{pick(v.primaryButtonLabel, 'View All Programs')}</ActionButton>
-            <ActionButton DS={DS} link={actionLink(v.secondaryButtonUrl, 'https://elevationathletics.ca/partnerships/')} variant="secondary" full>{pick(v.secondaryButtonLabel, 'Community Partnerships')}</ActionButton>
+            <ActionButton DS={DS} link={actionLink(v.primaryButtonUrl, '#volleyball-programs')} full>{townName ? 'View Programs' : pick(v.primaryButtonLabel, 'View All Programs')}</ActionButton>
+            {townName
+              ? <ActionButton DS={DS} link={{ url: route.hubUrl }} variant="secondary" full>All Volleyball Locations</ActionButton>
+              : <ActionButton DS={DS} link={actionLink(v.secondaryButtonUrl, 'https://elevationathletics.ca/partnerships/')} variant="secondary" full>{pick(v.secondaryButtonLabel, 'Community Partnerships')}</ActionButton>}
           </div>
         </section>
 
@@ -163,7 +185,9 @@ export default function VolleyballPage() {
                   ...FB.h(isMobile ? 34 : 42),
                   marginBottom: isMobile ? 14 : 16,
                 }}>
-                  {group.title}
+                  {group.href
+                    ? <a href={group.href} style={{ color: 'inherit', textDecoration: 'none' }}>{group.title} <span aria-hidden="true" style={{ fontSize: '0.6em' }}>→</span></a>
+                    : group.title}
                 </h3>
                 <div style={{
                   display: 'grid',
@@ -181,7 +205,7 @@ export default function VolleyballPage() {
               </div>
             ) : (
               <div style={{ ...FB.card, textAlign: 'center' }}>
-                <strong>{pick(v.emptyHeading, 'No active volleyball programs are listed right now.')}</strong>
+                <strong>{townName ? `No active volleyball programs in ${townName} right now.` : pick(v.emptyHeading, 'No active volleyball programs are listed right now.')}</strong>
                 <p style={{ margin: '8px 0 0', fontFamily: 'var(--font-body)', color: 'var(--ea-slate, #47636B)' }}>
                   {pick(v.emptyText, 'Please check back soon for new volleyball programming.')}
                 </p>
