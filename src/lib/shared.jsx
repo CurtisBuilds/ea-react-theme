@@ -274,7 +274,7 @@ function Hamburger({ open }) {
 // Custom header so we can support dropdown submenus, a mobile hamburger menu, and
 // the admin-swappable logo — none of which the DS NavBar exposes. Uses the same
 // design tokens, and the DS Button for the CTA when the bundle is loaded.
-function NavSection({ DS, t, isMobile }) {
+function NavSection({ DS, t, isMobile, overrides = {} }) {
   const { Button } = DS;
   const links = navLinks(t);
   const logoUrl = t.images.logo;            // custom logo from the Customizer, if set
@@ -570,7 +570,7 @@ function PageFooter({ isMobile, t }) {
 }
 
 // ─── Layout — the shell every page renders inside ─────────────────────────────
-export function Layout({ children }) {
+export function Layout({ children, overrides = {} }) {
   const DS = useDSComponents();
   const { isMobile, width } = useViewport();
   const t = getThemeData();
@@ -579,7 +579,7 @@ export function Layout({ children }) {
   const navCollapsed = width < NAV_COLLAPSE_WIDTH;
   return (
     <div style={{ background: '#fff', minHeight: '100vh', fontFamily: 'var(--font-body, "Inclusive Sans", sans-serif)' }}>
-      <NavSection DS={DS} t={t} isMobile={navCollapsed} />
+      <NavSection DS={DS} t={t} isMobile={navCollapsed} overrides={overrides} />
       {/* A sticky nav stays in normal flow, so the content needs no offset. */}
       {children}
       <PageFooter isMobile={isMobile} t={t} />
