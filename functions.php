@@ -1032,12 +1032,13 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
     $name    = sanitize_text_field( wp_unslash( $request['name'] ) );
     $email   = sanitize_email( wp_unslash( $request['email'] ) );
     $skill_level = isset( $request['skillLevel'] ) ? sanitize_text_field( wp_unslash( $request['skillLevel'] ) ) : '';
+    $phone   = isset( $request['phone'] ) ? sanitize_text_field( wp_unslash( $request['phone'] ) ) : '';
     $session = sanitize_text_field( wp_unslash( $request['session'] ) );
 
-    if ( '' === $name || '' === $email || ! is_email( $email ) || '' === $skill_level || '' === $session ) {
+    if ( '' === $name || '' === $email || ! is_email( $email ) || '' === $phone || '' === $skill_level || '' === $session ) {
         return new WP_Error(
             'ea_invalid',
-            'Please provide a valid name, email, skill level, and session.',
+            'Please provide a valid name, email, phone number, skill level, and session.',
             array( 'status' => 422 )
         );
     }
@@ -1059,7 +1060,13 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
     }
 
     update_post_meta( $entry_id, '_ea_email', $email );
+    update_post_meta( $entry_id, '_ea_phone', $phone );
     update_post_meta( $entry_id, '_ea_skill_level', $skill_level );
+    // Session id (ProgramID@date) + venue sent by the form; used for the Meta/GA trial event and reminders.
+    $session_id = isset( $request['sessionId'] ) ? sanitize_text_field( wp_unslash( $request['sessionId'] ) ) : '';
+    $venue      = isset( $request['venue'] ) ? sanitize_text_field( wp_unslash( $request['venue'] ) ) : '';
+    update_post_meta( $entry_id, '_ea_session_id', $session_id );
+    update_post_meta( $entry_id, '_ea_venue', $venue );
     update_post_meta( $entry_id, '_ea_session', $session );
     // The form has no city field; its sessions run in the site's home city
     // (same value the Free Trials list and CSV show), so record it for the EA app.
@@ -1084,6 +1091,7 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
     $body    = "A new free trial registration was submitted:\n\n"
              . "Athlete's Name: {$name}\n"
              . "Email: {$email}\n"
+             . "Phone: {$phone}\n"
              . "Skill Level: {$skill_level}\n"
              . "Session: " . ( '' !== $session ? $session : '(not specified)' ) . "\n";
     $headers = array(
@@ -1109,7 +1117,8 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
     );
     ea_mail_after_response( $email, $confirmation_subject, $confirmation_body, $confirmation_headers );
 
-    return new WP_REST_Response( array( 'ok' => true, 'id' => (int) $entry_id ), 200 );
+    $track = function_exists( 'ea_trial_track' ) ? ea_trial_track( (int) $entry_id ) : null;
+    return new WP_REST_Response( array( 'ok' => true, 'id' => (int) $entry_id, 'track' => $track ), 200 );
 }
 
 function ea_free_trial_notification_emails() {

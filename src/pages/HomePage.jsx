@@ -451,6 +451,13 @@ function weekdayLabel(date) {
   return date.toLocaleDateString('en-US', { weekday: 'long' });
 }
 
+// Stable id for one trial date: program id + ISO day (e.g. EA-PROGRAM-123@2026-10-14).
+function trialSessionId(p, date) {
+  const id = String((p && (p.ProgramID || p.ListingCode)) || '').trim();
+  if (!id || !(date instanceof Date) || isNaN(date)) return '';
+  return `${id}@${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 function trialSessionLabel(p, date) {
   const dateLabel = date
     ? `${weekdayLabel(date)}, ${formatProgramDate(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`)}`
@@ -500,7 +507,7 @@ function buildTrialSessionChoices(rows, sports) {
         const key = `${skillLevel}|${date.getTime()}|${program.Time}|${program.LocationName || program.City}`;
         if (seen.has(key)) return;
         seen.add(key);
-        choices.push({ skillLevel, label, date: date.getTime() });
+        choices.push({ skillLevel, label, date: date.getTime(), sessionId: trialSessionId(program, date), venue: program.LocationName || program.City || '' });
       });
     });
 
@@ -511,7 +518,7 @@ function buildTrialSessionChoices(rows, sports) {
 // Customizer toggle "Show photo carousel" is unchecked (options.useCarousel = false).
 function FreeTrialSection({ DS, isMobile, t }) {
   const { Button, SectionHeading } = DS;
-  const [form, setForm] = useState({ name: '', email: '', skillLevel: '', session: '', website: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', skillLevel: '', session: '', website: '' });
   const [submitted, setSubmitted] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -535,8 +542,8 @@ function FreeTrialSection({ DS, isMobile, t }) {
     setError('');
 
     // Client-side validation before hitting the server.
-    if (!form.name.trim() || !form.email.trim() || !form.skillLevel.trim() || !form.session.trim()) {
-      setError('Please enter the athlete’s name, email, skill level, and session.');
+    if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.skillLevel.trim() || !form.session.trim()) {
+      setError('Please enter the athlete’s name, email, phone number, skill level, and session.');
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
@@ -546,17 +553,19 @@ function FreeTrialSection({ DS, isMobile, t }) {
 
     setSending(true);
     try {
+      const picked = trialChoices.find((choice) => choice.label === form.session && choice.skillLevel === form.skillLevel) || {};
       const res = await fetch(`${t.apiUrl}ea/v1/free-trial`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': t.nonce },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, sessionId: picked.sessionId || '', venue: picked.venue || '' }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data && data.message ? data.message : 'Something went wrong. Please try again.');
       }
       setSubmitted(true);
-      setForm({ name: '', email: '', skillLevel: '', session: '', website: '' });
+      if (window.eaTrackTrial) window.eaTrackTrial(data.track);
+      setForm({ name: '', email: '', phone: '', skillLevel: '', session: '', website: '' });
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {
@@ -607,7 +616,7 @@ function FreeTrialSection({ DS, isMobile, t }) {
   ) : null;
 
   const formInner = (
-    <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 440 }}>
+    <form id="free-trial" onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 440, scrollMarginTop: 140 }}>
       <div>
         <label style={labelStyle} htmlFor="ft-name">{t.texts.freeTrialNameLabel || 'Athlete\'s Name'}</label>
         <input id="ft-name" style={inputStyle} placeholder="Name" value={form.name} onChange={update('name')} />
@@ -615,6 +624,10 @@ function FreeTrialSection({ DS, isMobile, t }) {
       <div style={{ marginTop: 20 }}>
         <label style={labelStyle} htmlFor="ft-email">{t.texts.freeTrialEmailLabel || 'Email'}</label>
         <input id="ft-email" type="email" style={inputStyle} placeholder="Email" value={form.email} onChange={update('email')} />
+      </div>
+      <div style={{ marginTop: 20 }}>
+        <label style={labelStyle} htmlFor="ft-phone">Phone Number</label>
+        <input id="ft-phone" type="tel" autoComplete="tel" style={inputStyle} placeholder="Phone Number" value={form.phone} onChange={update('phone')} />
       </div>
       <div style={{ marginTop: 20 }}>
         <label style={labelStyle} htmlFor="ft-skill-level">{t.texts.freeTrialSkillLabel || 'Skill Level'}</label>

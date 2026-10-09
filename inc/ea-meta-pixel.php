@@ -10,6 +10,7 @@
  *   RegisterClick       custom; fired by ea-attribution.php at the same moment as GA4 register_click
  *   CompleteRegistration once, on WPForms AJAX success for a form that carries a program ID
  *   JoinWaitlist        custom; same as above when the submission was a waitlist sign-up (no payment)
+ *   Schedule            free-trial booking, fired by eaTrackTrial() (inc/ea-attribution.php) with an eventID
  *
  * No personal data is ever sent: only program ID, program/town name, sport, price, currency.
  * GA4, register_click, attribution and the WPForms hidden fields are not touched.
@@ -114,13 +115,13 @@ add_action( 'wp_head', function () {
   !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(w,d,'script','https://connect.facebook.net/en_US/fbevents.js');
   var ID = CFG.id;
   w.fbq('init', ID);
-  function send(kind, name, params) {
-    try { w.fbq(kind, ID, name, params || {}); } catch (e) {}
+  function send(kind, name, params, opts) {
+    try { if (opts && opts.eventID) w.fbq(kind, ID, name, params || {}, { eventID: String(opts.eventID) }); else w.fbq(kind, ID, name, params || {}); } catch (e) {}
   }
   w.eaPixel = {
     id: ID,
-    track: function (name, params) { send('trackSingle', name, params); },
-    custom: function (name, params) { send('trackSingleCustom', name, params); }
+    track: function (name, params, opts) { send('trackSingle', name, params, opts); },
+    custom: function (name, params, opts) { send('trackSingleCustom', name, params, opts); }
   };
   w.eaPixel.track('PageView');
   if (CFG.view) w.eaPixel.track('ViewContent', CFG.view);

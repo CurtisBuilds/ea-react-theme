@@ -183,6 +183,51 @@ add_filter( 'http_request_args', function ( $args, $url ) {
     return $args;
 }, 10, 2 );
 
+// ─── Free-trial booking event (Meta "Schedule" + GA4 "free_trial_booked") ────
+// Built from the SAVED booking so the browser only reports what the server stored.
+// No name, email or phone is ever included.
+
+function ea_trial_is_test_email( $email ) {
+    $email = strtolower( trim( (string) $email ) );
+    return '' !== $email && ( 'kpan@outlook.com' === $email || (bool) preg_match( '/@elevationathletics\.ca$/', $email ) );
+}
+
+function ea_trial_track( $entry_id ) {
+    $entry_id = (int) $entry_id;
+    $m        = function ( $key ) use ( $entry_id ) {
+        return trim( (string) get_post_meta( $entry_id, $key, true ) );
+    };
+    $code  = function_exists( 'ea_app_signup_sport' ) ? ea_app_signup_sport( $m( '_ea_sport' ), '', home_url( '/' ) ) : '';
+    $label = function_exists( 'ea_app_sport_label' ) ? ea_app_sport_label( $code ) : '';
+    if ( '' === $label ) {
+        $label = 'Sports';
+    }
+    $session = $m( '_ea_session' );
+    $venue   = $m( '_ea_venue' );
+    if ( '' === $venue && '' !== $session ) {
+        $parts = preg_split( '/\s*[·|]\s*/u', $session );
+        $venue = trim( (string) end( $parts ) );
+    }
+    $host  = preg_replace( '/^www\./', '', (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
+    $short = preg_replace( '/[^a-z0-9]/', '', strtolower( strtok( $host, '.' ) ) );
+    $track = array(
+        'event_id'         => 'trial-' . $short . '-' . $entry_id,
+        'content_name'     => 'Free Trial – ' . $label,
+        'content_category' => $label,
+        'session_id'       => $m( '_ea_session_id' ),
+        'venue'            => $venue,
+        'form'             => $m( '_ea_source' ),
+        'test'             => ea_trial_is_test_email( $m( '_ea_email' ) ),
+    );
+    if ( '' !== $m( '_ea_age_range' ) ) {
+        $track['age_range'] = $m( '_ea_age_range' );
+    }
+    if ( '' !== $m( '_ea_skill_level' ) ) {
+        $track['skill_level'] = $m( '_ea_skill_level' );
+    }
+    return $track;
+}
+
 // ─── Browser script ──────────────────────────────────────────────────────────
 
 function ea_attr_page_sport() {
@@ -384,6 +429,25 @@ add_action( 'wp_head', function () {
     setTimeout(go, 1200);
     (loadFeed() || Promise.resolve()).then(go, go);
   }
+  // ── Free-trial booked: called by the trial forms ONLY after the POST returned OK ──
+  w.eaTrackTrial = function (tr) {
+    try {
+      if (!tr || typeof tr !== 'object') return;
+      var p = { content_name: tr.content_name || '', content_category: tr.content_category || '', session_id: tr.session_id || '', venue: tr.venue || '' };
+      if (tr.age_range) p.age_range = tr.age_range;
+      if (tr.skill_level) p.skill_level = tr.skill_level;
+      var ga = {}; for (var k in p) ga[k] = p[k];
+      ga.form = tr.form || ''; ga.page_path = location.pathname; ga.transport_type = 'beacon';
+      if (tr.test) ga.test_event = 'true';
+      if (typeof w.gtag === 'function') w.gtag('event', 'free_trial_booked', ga);
+      else (w.dataLayer = w.dataLayer || []).push(['event', 'free_trial_booked', ga]);
+      if (w.eaPixel) {
+        var mp = {}; for (var j in p) mp[j] = p[j];
+        if (tr.test) mp.test_event = true;
+        w.eaPixel.track('Schedule', mp, { eventID: tr.event_id || '' });
+      }
+    } catch (e) {}
+  };
   d.addEventListener('mousedown', onActivate, true);
   d.addEventListener('auxclick', onActivate, true);
   d.addEventListener('click', onActivate, true);
