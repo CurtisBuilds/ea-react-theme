@@ -573,12 +573,15 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', on
     }
   };
 
+  // Landing page on phones: tighter spacing so the Register button shows without scrolling.
+  const compact = variant === 'landing' && isMobile;
+  const fieldGap = compact ? 10 : 20;
   const labelStyle = {
     display: 'block', fontFamily: 'var(--font-body, "Inclusive Sans", sans-serif)',
-    fontSize: 14, fontWeight: 600, color: 'var(--ea-navy, #10414F)', marginBottom: 8,
+    fontSize: 14, fontWeight: 600, color: 'var(--ea-navy, #10414F)', marginBottom: compact ? 4 : 8,
   };
   const inputStyle = {
-    width: '100%', boxSizing: 'border-box', padding: '12px 16px',
+    width: '100%', boxSizing: 'border-box', padding: compact ? '10px 14px' : '12px 16px',
     border: '1px solid var(--border-card, #E5E5E5)', borderRadius: 8,
     fontFamily: 'var(--font-body, "Inclusive Sans", sans-serif)', fontSize: 16,
     color: 'var(--ea-ink, #1E526E)', background: '#fff',
@@ -627,15 +630,15 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', on
         <label style={labelStyle} htmlFor="ft-name">{t.texts.freeTrialNameLabel || 'Athlete\'s Name'}</label>
         <input id="ft-name" style={inputStyle} placeholder="Name" value={form.name} onChange={update('name')} />
       </div>
-      <div style={{ marginTop: 20 }}>
+      <div style={{ marginTop: fieldGap }}>
         <label style={labelStyle} htmlFor="ft-email">{t.texts.freeTrialEmailLabel || 'Email'}</label>
         <input id="ft-email" type="email" style={inputStyle} placeholder="Email" value={form.email} onChange={update('email')} />
       </div>
-      <div style={{ marginTop: 20 }}>
+      <div style={{ marginTop: fieldGap }}>
         <label style={labelStyle} htmlFor="ft-phone">Phone Number</label>
         <input id="ft-phone" type="tel" autoComplete="tel" style={inputStyle} placeholder="Phone Number" value={form.phone} onChange={update('phone')} />
       </div>
-      <div style={{ marginTop: 20 }}>
+      <div style={{ marginTop: fieldGap }}>
         <label style={labelStyle} htmlFor="ft-skill-level">{t.texts.freeTrialSkillLabel || 'Skill Level'}</label>
         <SessionSelect
           id="ft-skill-level"
@@ -645,7 +648,7 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', on
           onChange={(val) => setForm((f) => ({ ...f, skillLevel: val, session: '' }))}
         />
       </div>
-      <div style={{ marginTop: 20 }}>
+      <div style={{ marginTop: fieldGap }}>
         <label style={labelStyle} htmlFor="ft-session">{t.texts.freeTrialSessionLabel || 'Choose Session'}</label>
         <SessionSelect
           id="ft-session"
@@ -667,7 +670,7 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', on
         </p>
       )}
 
-      <div style={{ marginTop: 24, display: 'flex', justifyContent: isMobile ? 'center' : 'flex-start' }}>
+      <div style={{ marginTop: compact ? 16 : 24, display: 'flex', justifyContent: isMobile ? 'center' : 'flex-start' }}>
         {Button
           ? <Button variant="dark" type="submit" disabled={sending} style={freeTrialButtonStyle}>{sending ? 'Registering…' : (t.texts.freeTrialSubmit || 'Register')}</Button>
           : <button type="submit" disabled={sending} style={{ ...FB.btn('primary'), ...freeTrialButtonStyle, background: 'var(--ea-teal-900, #004356)', opacity: sending ? 0.7 : 1, cursor: sending ? 'default' : 'pointer' }}>{sending ? 'Registering…' : (t.texts.freeTrialSubmit || 'Register')}</button>
