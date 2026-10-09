@@ -14,6 +14,7 @@ import FAQPage  from './pages/FAQ.jsx';
 import BlankContentPage from './pages/BlankContentPage.jsx';
 import LeagueHubPage from './pages/LeagueHubPage.jsx';
 import CityProgramsPage from './pages/CityProgramsPage.jsx';
+import FreeTrialLandingPage from './pages/FreeTrialLandingPage.jsx';
 import CityProgramsFreeTrialPage from './pages/CityProgramsFreeTrialPage.jsx';
 import BasketballGuidePage from './pages/BasketballGuidePage.jsx';
 import BasketballRepTryoutsPage from './pages/BasketballRepTryoutsPage.jsx';
@@ -31,6 +32,7 @@ const PAGES = {
   blank:     BlankContentPage,
   leagueHub: LeagueHubPage,
   cityPrograms: CityProgramsPage,
+  freeTrialLanding: FreeTrialLandingPage,
   cityProgramsFreeTrial: CityProgramsFreeTrialPage,
   basketballGuide: BasketballGuidePage,
   basketballRepTryouts: BasketballRepTryoutsPage,

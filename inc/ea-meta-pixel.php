@@ -73,6 +73,15 @@ function ea_pixel_view_content() {
         }
         return null;
     }
+    // Free-trial landing page (template-free-trial.php).
+    if ( is_page_template( 'template-free-trial.php' ) ) {
+        $code  = function_exists( 'ea_app_signup_sport' ) ? ea_app_signup_sport( '', '', home_url( '/' ) ) : '';
+        $label = ea_pixel_sport_label( $code );
+        return array(
+            'content_name'     => 'Free Trial – ' . ( '' !== $label ? $label : 'Sports' ),
+            'content_category' => $label,
+        );
+    }
     // Town page: the feed lists this page as the programs' home.
     if ( ! function_exists( 'ea_seo_page_programs' ) ) {
         return null;
