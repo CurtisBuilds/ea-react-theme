@@ -507,6 +507,7 @@ function PageFooter({ isMobile, t, overrides = {} }) {
       textAlign: 'left',
     }}>
       © {new Date().getFullYear()} {t.texts.footerCopyright || 'Elevation Athletics. All rights reserved.'}
+      {' · '}<a href="https://elevationathletics.ca/privacy-policy/" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy Policy</a>
     </p>
   );
 

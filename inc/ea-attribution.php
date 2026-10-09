@@ -291,7 +291,7 @@ add_action( 'wp_head', function () {
     if (feed || feedLoading || !w.fetch) return feedLoading;
     feedLoading = fetch(CFG.feed, { cache: 'force-cache' }).then(function (r) { return r.json(); }).then(function (list) {
       var map = {};
-      (Array.isArray(list) ? list : []).forEach(function (p) { if (p && p.ProgramID) map[String(p.ProgramID).toUpperCase()] = { city: p.City || '', sport: p.sport || '' }; });
+      (Array.isArray(list) ? list : []).forEach(function (p) { if (p && p.ProgramID) map[String(p.ProgramID).toUpperCase()] = { city: p.City || '', sport: p.sport || '', title: p.Title || '' }; });
       feed = map;
     }).catch(function () { feed = {}; });
     return feedLoading;
@@ -310,6 +310,7 @@ add_action( 'wp_head', function () {
         cta: card.getAttribute('data-ea-cta') || (waitlist ? 'waitlist' : 'register'),
         city: card.getAttribute('data-ea-city') || '',
         sport: card.getAttribute('data-ea-sport') || '',
+        name: card.getAttribute('data-ea-name') || '',
         tagged: true
       };
     }
@@ -332,6 +333,10 @@ add_action( 'wp_head', function () {
     };
     if (typeof w.gtag === 'function') w.gtag('event', 'register_click', params);
     else (w.dataLayer = w.dataLayer || []).push(['event', 'register_click', params]);
+    // Meta Pixel twin of register_click (inc/ea-meta-pixel.php). Same program ID; no personal data.
+    try {
+      if (w.eaPixel) w.eaPixel.custom('RegisterClick', { content_ids: [params.program_id], content_name: info.name || (p && p.title) || '', cta: params.cta });
+    } catch (e) {}
   }
   function linkFrom(e) { var t = e.target; return t && t.closest ? t.closest('a[href]') : null; }
 

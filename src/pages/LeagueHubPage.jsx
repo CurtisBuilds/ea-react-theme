@@ -611,7 +611,7 @@ export function ProgramCard({ program, isMobile, onSubscribe, stacked = false, t
       {cta}
     </span>
   ) : (
-    <a href={registerHref} target={registerHref.startsWith('mailto:') ? undefined : '_blank'} rel={registerHref.startsWith('mailto:') ? undefined : 'noopener noreferrer'} data-ea-program={String(program.ProgramID || '').trim() || String(program.ListingCode || '').trim() || 'external'} data-ea-cta={cta === 'Join Waitlist' ? 'waitlist' : 'register'} data-ea-city={String(program.City || '')} data-ea-sport={String(program.sport || '')} style={registerStyle}>
+    <a href={registerHref} target={registerHref.startsWith('mailto:') ? undefined : '_blank'} rel={registerHref.startsWith('mailto:') ? undefined : 'noopener noreferrer'} data-ea-program={String(program.ProgramID || '').trim() || String(program.ListingCode || '').trim() || 'external'} data-ea-cta={cta === 'Join Waitlist' ? 'waitlist' : 'register'} data-ea-city={String(program.City || '')} data-ea-sport={String(program.sport || '')} data-ea-name={String(program.Title || '')} style={registerStyle}>
       {cta}
     </a>
   );

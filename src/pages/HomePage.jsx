@@ -1294,7 +1294,7 @@ function ActiveProgramCard({ program, isMobile = false, onSubscribe, t }) {
         )}
         <a
           href={registerHref}
-          data-ea-program={String(program.ProgramID || '').trim() || String(program.ListingCode || '').trim() || 'external'} data-ea-cta={cta === 'Join Waitlist' ? 'waitlist' : 'register'} data-ea-city={String(program.City || '')} data-ea-sport={String(program.sport || '')}
+          data-ea-program={String(program.ProgramID || '').trim() || String(program.ListingCode || '').trim() || 'external'} data-ea-cta={cta === 'Join Waitlist' ? 'waitlist' : 'register'} data-ea-city={String(program.City || '')} data-ea-sport={String(program.sport || '')} data-ea-name={String(program.Title || '')}
           target={registerHref.startsWith('mailto:') ? undefined : '_blank'}
           rel={registerHref.startsWith('mailto:') ? undefined : 'noopener noreferrer'}
           style={{
