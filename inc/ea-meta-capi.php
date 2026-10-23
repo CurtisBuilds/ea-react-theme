@@ -90,15 +90,35 @@ add_action( 'wpforms_process_complete', function ( $fields, $entry, $form_data, 
         ea_capi_queue_registration( $fields, $entry_id );
     } catch ( \Throwable $e ) {
         // Never let tracking break a registration.
+        ea_capi_diag( $entry_id, 'error: ' . $e->getMessage() );
     }
 }, 30, 4 );
 
+/** Why a submission did / didn't queue a server event (no personal data). */
+function ea_capi_diag( $entry_id, $reason ) {
+    try {
+        $d = get_option( 'ea_capi_diag', array() );
+        $d = is_array( $d ) ? $d : array();
+        $keys = array_values( array_filter( array_keys( (array) $_POST ), function ( $k ) { return 0 === strpos( (string) $k, 'ea_' ); } ) );
+        array_unshift( $d, array(
+            'time'   => gmdate( 'Y-m-d H:i:s' ) . ' UTC',
+            'entry'  => (int) $entry_id,
+            'reason' => substr( (string) $reason, 0, 200 ),
+            'posted' => implode( ',', $keys ),
+            'ajax'   => wp_doing_ajax() ? 'ajax' : 'page',
+        ) );
+        update_option( 'ea_capi_diag', array_slice( $d, 0, 15 ), false );
+    } catch ( \Throwable $e ) {}
+}
+
 function ea_capi_queue_registration( $fields, $entry_id ) {
     if ( 'off' === ea_capi_mode() || '' === ea_capi_token() || ! function_exists( 'ea_pixel_id' ) || '' === ea_pixel_id() ) {
+        ea_capi_diag( $entry_id, 'skipped: off / no token / no pixel id' );
         return;
     }
     $eid = isset( $_POST['ea_capi_eid'] ) ? preg_replace( '/[^A-Za-z0-9\-]/', '', (string) wp_unslash( $_POST['ea_capi_eid'] ) ) : '';
     if ( strlen( $eid ) < 12 ) {
+        ea_capi_diag( $entry_id, 'skipped: no shared event id posted' );
         return; // no shared id from the browser → don't send (avoids double counting)
     }
 
@@ -123,6 +143,7 @@ function ea_capi_queue_registration( $fields, $entry_id ) {
         }
     }
     if ( '' === $pid || $waitlist ) {
+        ea_capi_diag( $entry_id, $waitlist ? 'skipped: waitlist' : 'skipped: no program id' );
         return; // not a paid program registration
     }
 
@@ -162,7 +183,8 @@ function ea_capi_queue_registration( $fields, $entry_id ) {
     );
 
     // Send after the response (WP-Cron), so the registration form never waits on Meta.
-    wp_schedule_single_event( time(), 'ea_capi_send', array( $event, (int) $entry_id ) );
+    $ok = wp_schedule_single_event( time(), 'ea_capi_send', array( $event, (int) $entry_id ) );
+    ea_capi_diag( $entry_id, ( true === $ok ? 'queued ' : 'queue FAILED ' ) . $eid . ' ' . $pid );
     if ( function_exists( 'spawn_cron' ) ) {
         spawn_cron();
     }
@@ -255,6 +277,12 @@ function ea_capi_settings_section() {
         </table>
         <?php submit_button( 'Save server-event settings' ); ?>
     </form>
+    <?php $diag = get_option( 'ea_capi_diag', array() ); if ( is_array( $diag ) && $diag ) : ?>
+        <h3>Recent registrations seen by the server</h3>
+        <table class="widefat striped" style="max-width:1100px"><thead><tr><th>Time</th><th>Entry</th><th>Result</th><th>EA fields posted</th><th>Request</th></tr></thead><tbody>
+        <?php foreach ( $diag as $r ) : ?><tr><td><?php echo esc_html( $r['time'] ); ?></td><td><?php echo esc_html( $r['entry'] ); ?></td><td><?php echo esc_html( $r['reason'] ); ?></td><td><?php echo esc_html( $r['posted'] ); ?></td><td><?php echo esc_html( $r['ajax'] ); ?></td></tr><?php endforeach; ?>
+        </tbody></table>
+    <?php endif; ?>
     <?php if ( is_array( $log ) && $log ) : ?>
         <h3>Recent server events</h3>
         <table class="widefat striped" style="max-width:1100px"><thead><tr><th>Time</th><th>Mode</th><th>Entry</th><th>Event ID</th><th>Program</th><th>Value</th><th>Match keys</th><th>Status</th><th>Note</th></tr></thead><tbody>
