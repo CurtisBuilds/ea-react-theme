@@ -181,9 +181,28 @@ add_action( 'wp_head', function () {
   }
   var snaps = {}, fired = {};
   function formKey(form) { return form.getAttribute('data-formid') || form.id || 'form'; }
+  // Shared event id for the server-side (Conversions API) copy of CompleteRegistration:
+  // added to the form as hidden fields so inc/ea-meta-capi.php sends the same event_id.
+  function hidden(f, n, v) {
+    var el = f.querySelector('input[name="' + n + '"]');
+    if (!el) { el = d.createElement('input'); el.type = 'hidden'; el.name = n; f.appendChild(el); }
+    if (v !== undefined) el.value = v;
+    return el;
+  }
+  function eventId(f) {
+    var el = hidden(f, 'ea_capi_eid');
+    if (!el.value) el.value = 'reg-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    return el.value;
+  }
   d.addEventListener('submit', function (e) {
     var f = e.target;
-    if (f && f.classList && f.classList.contains('wpforms-form')) { try { snaps[formKey(f)] = snapshot(f); } catch (x) {} }
+    if (f && f.classList && f.classList.contains('wpforms-form')) {
+      try {
+        var s = snapshot(f);
+        if (s && !s.waitlist) { s.eid = eventId(f); hidden(f, 'ea_capi_val', String(s.value)); hidden(f, 'ea_capi_name', s.name || ''); }
+        snaps[formKey(f)] = s;
+      } catch (x) {}
+    }
   }, true);
   function onSuccess(form) {
     var key = formKey(form);
@@ -191,13 +210,15 @@ add_action( 'wp_head', function () {
     var s = null; try { s = snapshot(form); } catch (x) {}
     s = s || snaps[key];
     if (!s) return;
+    var eidEl = form.querySelector('input[name="ea_capi_eid"]');
+    var eid = (eidEl && eidEl.value) || (snaps[key] && snaps[key].eid) || '';
     fired[key] = true;
     lookupName(s.pid, function (title) {
       var params = { content_ids: [s.pid], content_name: title || s.name || s.pid, content_type: 'product' };
       if (TEST.test(s.pid)) params.test_event = true;
       if (s.waitlist) { w.eaPixel.custom('JoinWaitlist', params); return; }
       params.value = s.value; params.currency = 'CAD';
-      w.eaPixel.track('CompleteRegistration', params);
+      w.eaPixel.track('CompleteRegistration', params, eid ? { eventID: eid } : null);
     });
   }
   function bindJq() {
@@ -241,7 +262,7 @@ function ea_pixel_settings_page() {
     <div class="wrap">
       <h1>EA Meta Pixel</h1>
       <?php if ( ! empty( $_GET['saved'] ) ) : ?><div class="notice notice-success"><p>Saved. Purge the SiteGround cache so visitors get the change.</p></div><?php endif; ?>
-      <p>Sends PageView, ViewContent, RegisterClick, CompleteRegistration and JoinWaitlist to Meta. No names, emails or phone numbers are ever sent.</p>
+      <p>Browser Pixel: sends PageView, ViewContent, RegisterClick, CompleteRegistration and JoinWaitlist to Meta. The browser Pixel never sends names, emails or phone numbers.</p>
       <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
         <input type="hidden" name="action" value="ea_pixel_save" />
         <?php wp_nonce_field( 'ea_pixel_save' ); ?>
@@ -252,6 +273,7 @@ function ea_pixel_settings_page() {
         </table>
         <?php submit_button(); ?>
       </form>
+      <?php if ( function_exists( 'ea_capi_settings_section' ) ) { ea_capi_settings_section(); } ?>
     </div>
     <?php
 }

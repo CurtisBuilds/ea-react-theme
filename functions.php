@@ -12,6 +12,7 @@ require_once get_template_directory() . '/inc/ea-app-sync.php';
 require_once get_template_directory() . '/inc/ea-attribution.php';
 require_once get_template_directory() . '/inc/ea-seo.php';
 require_once get_template_directory() . '/inc/ea-meta-pixel.php';
+require_once get_template_directory() . '/inc/ea-meta-capi.php';
 
 function ea_react_theme_setup() {
     add_theme_support( 'title-tag' );
