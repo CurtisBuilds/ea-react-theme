@@ -174,7 +174,10 @@ export default function CityProgramsPage() {
                 onSubscribe={setSubscribeLoc}
                 t={t}
               />
-            )) : status === 'loading' ? (
+            )) : status === 'loading' && typeof window !== 'undefined' && window.__EA_SSR_LIST ? (
+              // Server-rendered list (inc/ea-ssr.php), shown until the live feed arrives.
+              <div dangerouslySetInnerHTML={{ __html: window.__EA_SSR_LIST }} />
+            ) : status === 'loading' ? (
               <div style={{ ...FB.card, textAlign: 'center' }}>
                 <strong>Loading programs...</strong>
               </div>

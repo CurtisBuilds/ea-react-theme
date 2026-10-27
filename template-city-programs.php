@@ -16,6 +16,7 @@ get_header(); ?>
     data-city-slug="<?php echo esc_attr( $ea_slug ); ?>"
     data-wp-slug="<?php echo esc_attr( $ea_slug ); ?>"
 >
+    <?php echo function_exists( 'ea_ssr_city_markup' ) ? ea_ssr_city_markup( $ea_slug ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside ?>
     <noscript>
         <p><?php esc_html_e( 'This site requires JavaScript to display. Please enable JavaScript in your browser.', 'ea-react-theme' ); ?></p>
     </noscript>

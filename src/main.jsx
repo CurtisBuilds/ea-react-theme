@@ -27,6 +27,10 @@ const PAGES = {
 
 const el = document.getElementById('ea-react-root');
 if (el) {
+  // Server-rendered program list (inc/ea-ssr.php). React replaces the root's
+  // markup on mount, so keep the list to show while the live feed loads.
+  const ssrList = el.querySelector('[data-ea-ssr-list]');
+  if (ssrList) window.__EA_SSR_LIST = ssrList.innerHTML;
   const slug = el.dataset.page || 'home';
   const Page = PAGES[slug] || HomePage;   // unknown slug → fall back to the home page
   createRoot(el).render(<Page />);
