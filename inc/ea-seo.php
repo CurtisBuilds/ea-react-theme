@@ -169,6 +169,25 @@ function ea_seo_description( $programs ) {
         }
     }
     $sport = ea_seo_sport_label();
+    // City pages: describe the same programs the page lists (inc/ea-ssr.php).
+    if ( is_page_template( 'template-city-programs.php' ) && function_exists( 'ea_ssr_city_programs' ) && function_exists( 'ea_ssr_enabled' ) && ea_ssr_enabled() ) {
+        $slug  = (string) get_post_field( 'post_name', get_queried_object_id() );
+        $list  = ea_ssr_city_programs( $slug );
+        $city  = ea_ssr_city_name( $list, $slug );
+        $sname = function_exists( 'ea_ssr_sport_name' ) ? ea_ssr_sport_name() : $sport;
+        if ( $list ) {
+            $mins = array();
+            $maxs = array();
+            foreach ( $list as $p ) {
+                if ( isset( $p['MinAge'] ) && is_numeric( $p['MinAge'] ) ) { $mins[] = (int) $p['MinAge']; }
+                if ( isset( $p['MaxAge'] ) && is_numeric( $p['MaxAge'] ) ) { $maxs[] = (int) $p['MaxAge']; }
+            }
+            $ages = $mins ? ' for ages ' . min( $mins ) . ( ( ! $maxs || max( $maxs ) >= 99 ) ? '+' : '–' . max( $maxs ) ) : '';
+            return ea_seo_clip( sprintf( '%s in %s: %d %s%s with Elevation Athletics. See days, times, locations and prices, and register online.',
+                $sname, $city, count( $list ), 1 === count( $list ) ? 'program' : 'programs', $ages ) );
+        }
+        return ea_seo_clip( sprintf( '%s programs in %s with Elevation Athletics. No sessions open right now; see nearby cities or check back soon.', $sname, $city ) );
+    }
     if ( $programs ) {
         $city = (string) ( $programs[0]['City'] ?? '' );
         return ea_seo_clip( sprintf(
