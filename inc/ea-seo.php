@@ -269,6 +269,12 @@ function ea_seo_event( $p ) {
             'name'  => 'Elevation Athletics',
             'url'   => 'https://elevationathletics.ca/',
         ),
+        // Who runs the session: EA's coaches (coach names are not in the feed).
+        'performer'           => array(
+            '@type' => 'Organization',
+            'name'  => 'Elevation Athletics',
+            'url'   => 'https://elevationathletics.ca/',
+        ),
     );
     if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $end ) ) {
         $event['endDate'] = $end;
@@ -276,6 +282,13 @@ function ea_seo_event( $p ) {
     if ( '' !== $desc ) {
         $event['description'] = $desc;
     }
+    // Program photo: the page's featured image, else the site's link-preview image / icon.
+    $image = ea_seo_image();
+    if ( '' !== $image ) {
+        $event['image'] = array( $image );
+    }
+    // offers.validFrom is left out on purpose: the feed has no "registration opens" date.
+
     if ( is_numeric( $price ) && (float) $price > 0 ) {
         $event['offers'] = array(
             '@type'         => 'Offer',
