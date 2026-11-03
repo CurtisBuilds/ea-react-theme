@@ -1044,6 +1044,17 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
         );
     }
 
+    // Same email + session + athlete within 10 minutes = the booking already saved
+    // (double click / resubmit). Answer OK with that booking; no second entry, email or event.
+    $ea_trial_lock = '';
+    if ( function_exists( 'ea_trial_duplicate_of' ) ) {
+        $dup = ea_trial_duplicate_of( $email, $session, $name );
+        $ea_trial_lock = $dup ? '' : ea_trial_lock( $email, $session, $name );
+        if ( $dup || false === $ea_trial_lock ) {
+            return new WP_REST_Response( array( 'ok' => true, 'id' => (int) $dup, 'track' => null, 'duplicate' => true ), 200 );
+        }
+    }
+
     // 1) Store the submission as an ea_free_trial entry (viewable in wp-admin →
     //    Free Trials). This is the record of truth, so we do it first.
     $entry_id = wp_insert_post( array(
@@ -1052,6 +1063,9 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
         'post_title'  => $name,
     ), true );
 
+    if ( ( is_wp_error( $entry_id ) || ! $entry_id ) && function_exists( 'ea_trial_unlock' ) ) {
+        ea_trial_unlock( $ea_trial_lock );
+    }
     if ( is_wp_error( $entry_id ) || ! $entry_id ) {
         return new WP_Error(
             'ea_store_failed',
@@ -1078,6 +1092,9 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
     $trial_sport = isset( $request['sport'] ) ? sanitize_text_field( wp_unslash( $request['sport'] ) ) : '';
     if ( '' !== $trial_sport ) {
         update_post_meta( $entry_id, '_ea_sport', $trial_sport );
+    }
+    if ( function_exists( 'ea_trial_unlock' ) ) {
+        ea_trial_unlock( $ea_trial_lock );
     }
     ea_app_trial_send( (int) $entry_id, array(
         'sport'    => $trial_sport,
@@ -1497,10 +1514,10 @@ function ea_export_free_trials_csv() {
     ea_send_csv_headers( 'ea-free-trials-' . gmdate( 'Y-m-d' ) . '.csv' );
 
     $out = fopen( 'php://output', 'w' );
-    fputcsv( $out, array( 'Submission ID', 'Athlete', 'Email', 'City', 'Sport', 'Skill Level', 'Session', 'Submitted At' ) );
+    fputcsv( $out, array_merge( array( 'Submission ID', 'Athlete', 'Email', 'City', 'Sport', 'Skill Level', 'Session', 'Submitted At' ), function_exists( 'ea_attr_csv_headers' ) ? ea_attr_csv_headers() : array() ) );
 
     foreach ( ea_get_export_posts( 'ea_free_trial' ) as $entry ) {
-        fputcsv( $out, array(
+        fputcsv( $out, array_merge( array(
             $entry->ID,
             get_the_title( $entry ),
             get_post_meta( $entry->ID, '_ea_email', true ),
@@ -1509,7 +1526,7 @@ function ea_export_free_trials_csv() {
             get_post_meta( $entry->ID, '_ea_skill_level', true ),
             get_post_meta( $entry->ID, '_ea_session', true ),
             get_date_from_gmt( $entry->post_date_gmt, 'Y-m-d H:i:s' ),
-        ) );
+        ), function_exists( 'ea_attr_csv_values' ) ? ea_attr_csv_values( $entry->ID ) : array() ) );
     }
 
     fclose( $out );
