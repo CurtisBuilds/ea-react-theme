@@ -107,15 +107,167 @@ function ea_attr_capture_for_post( $post_id, $extra ) {
         return;
     }
     $attr = ea_attr_from_request();
-    if ( null !== $attr ) {
-        update_post_meta( (int) $post_id, '_ea_attribution', wp_slash( wp_json_encode( $attr ) ) );
+    $last = is_array( $attr ) && is_array( $attr['last'] ?? null ) ? $attr['last'] : array();
+    $ids  = ea_attr_meta_ids( (string) ( $last['fbclid'] ?? '' ) );
+    if ( null === $attr && ! $ids ) {
+        return;
     }
+    if ( null === $attr ) {
+        $attr = array( 'first' => null, 'last' => null, 'ga_client_id' => null, 'recipient_token' => null );
+    }
+    // Meta browser / click IDs (cookies only, no personal data): fbc, fbp.
+    $attr['fbc'] = $ids['fbc'] ?? null;
+    $attr['fbp'] = $ids['fbp'] ?? null;
+    update_post_meta( (int) $post_id, '_ea_attribution', wp_slash( wp_json_encode( $attr ) ) );
+}
+
+/**
+ * Meta's _fbp / _fbc cookies. When _fbc is missing but the visitor arrived with
+ * an fbclid, rebuild it in Meta's own format (fb.1.<ms>.<fbclid>).
+ */
+function ea_attr_meta_ids( $fbclid = '' ) {
+    $fbp = ! empty( $_COOKIE['_fbp'] ) ? ea_attr_clip( wp_unslash( $_COOKIE['_fbp'] ), 200 ) : '';
+    $fbc = ! empty( $_COOKIE['_fbc'] ) ? ea_attr_clip( wp_unslash( $_COOKIE['_fbc'] ), 500 ) : '';
+    if ( '' === $fbc && '' !== $fbclid ) {
+        $fbc = ea_attr_clip( 'fb.1.' . (string) round( microtime( true ) * 1000 ) . '.' . $fbclid, 500 );
+    }
+    return array_filter( array( 'fbc' => $fbc, 'fbp' => $fbp ), 'strlen' );
 }
 
 function ea_attr_for_post( $post_id ) {
     $saved = get_post_meta( (int) $post_id, '_ea_attribution', true );
     $data  = is_string( $saved ) && '' !== $saved ? json_decode( $saved, true ) : null;
     return is_array( $data ) ? $data : null;
+}
+
+// ─── Free Trials admin: Source column + CSV fields ───────────────────────────
+
+/** "fb · Newmarket | Basketball | … · V1" from the latest touch; referrer host; "Direct"; '' when nothing saved. */
+function ea_attr_source_label( $attr ) {
+    if ( ! is_array( $attr ) ) {
+        return '';
+    }
+    $s = is_array( $attr['last'] ?? null ) ? $attr['last'] : ( is_array( $attr['first'] ?? null ) ? $attr['first'] : array() );
+    $parts = array_values( array_filter( array( $s['utm_source'] ?? '', $s['utm_campaign'] ?? '', $s['utm_content'] ?? '' ), 'strlen' ) );
+    if ( $parts ) {
+        return implode( ' · ', $parts );
+    }
+    if ( ! empty( $s['fbclid'] ) ) {
+        return 'Facebook ad (no UTMs)';
+    }
+    if ( ! empty( $s['gclid'] ) ) {
+        return 'Google ad (no UTMs)';
+    }
+    if ( ! empty( $s['referrer_host'] ) ) {
+        return $s['referrer_host'];
+    }
+    return $s ? 'Direct' : '';
+}
+
+add_filter( 'manage_ea_free_trial_posts_columns', function ( $columns ) {
+    $out = array();
+    foreach ( $columns as $key => $label ) {
+        if ( 'date' === $key ) {
+            $out['ea_attr_source'] = __( 'Source', 'ea-react-theme' );
+        }
+        $out[ $key ] = $label;
+    }
+    if ( ! isset( $out['ea_attr_source'] ) ) {
+        $out['ea_attr_source'] = __( 'Source', 'ea-react-theme' );
+    }
+    return $out;
+}, 20 );
+
+add_action( 'manage_ea_free_trial_posts_custom_column', function ( $column, $post_id ) {
+    if ( 'ea_attr_source' !== $column ) {
+        return;
+    }
+    $attr  = ea_attr_for_post( $post_id );
+    $label = ea_attr_source_label( $attr );
+    if ( '' === $label ) {
+        echo '—';
+        return;
+    }
+    $first = ea_attr_source_label( array( 'last' => $attr['first'] ?? null ) );
+    $tip   = '' !== $first && $first !== $label ? 'First visit: ' . $first : '';
+    echo '<span title="' . esc_attr( $tip ) . '">' . esc_html( $label ) . '</span>';
+}, 10, 2 );
+
+function ea_attr_csv_headers() {
+    return array( 'Source', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid',
+        'Referrer', 'Landing page', 'Source (first visit)', 'First visit at', 'fbc', 'fbp' );
+}
+
+function ea_attr_csv_values( $post_id ) {
+    $attr = ea_attr_for_post( $post_id );
+    $last = is_array( $attr['last'] ?? null ) ? $attr['last'] : ( is_array( $attr['first'] ?? null ) ? $attr['first'] : array() );
+    $first = is_array( $attr['first'] ?? null ) ? $attr['first'] : array();
+    $v = function ( $a, $k ) { return isset( $a[ $k ] ) ? (string) $a[ $k ] : ''; };
+    return array(
+        ea_attr_source_label( $attr ),
+        $v( $last, 'utm_source' ), $v( $last, 'utm_medium' ), $v( $last, 'utm_campaign' ), $v( $last, 'utm_content' ), $v( $last, 'utm_term' ),
+        $v( $last, 'fbclid' ), $v( $last, 'gclid' ), $v( $last, 'referrer_host' ),
+        trim( $v( $last, 'landing_host' ) . $v( $last, 'landing_page' ) ),
+        $first ? ea_attr_source_label( array( 'last' => $first ) ) : '', $v( $first, 'ts' ),
+        is_array( $attr ) ? (string) ( $attr['fbc'] ?? '' ) : '', is_array( $attr ) ? (string) ( $attr['fbp'] ?? '' ) : '',
+    );
+}
+
+// ─── Free trials: one booking per athlete, email and session ────────────────
+// Same email + same session + same athlete name within 10 minutes = the booking
+// already saved (double click, back-and-resubmit). Siblings on one email are
+// different athletes, so they still book separately.
+
+function ea_trial_norm( $s ) {
+    return strtolower( preg_replace( '/\s+/u', ' ', trim( (string) $s ) ) );
+}
+
+/** ID of an identical booking saved in the last 10 minutes, or 0. */
+function ea_trial_duplicate_of( $email, $session, $name ) {
+    if ( '' === (string) $email || '' === (string) $session ) {
+        return 0;
+    }
+    $ids = get_posts( array(
+        'post_type'        => 'ea_free_trial',
+        'post_status'      => 'publish',
+        'posts_per_page'   => 20,
+        'fields'           => 'ids',
+        'no_found_rows'    => true,
+        'suppress_filters' => true,
+        'date_query'       => array( array( 'column' => 'post_date_gmt', 'after' => gmdate( 'Y-m-d H:i:s', time() - 10 * MINUTE_IN_SECONDS ), 'inclusive' => true ) ),
+        'meta_query'       => array(
+            array( 'key' => '_ea_email', 'value' => (string) $email ),
+            array( 'key' => '_ea_session', 'value' => (string) $session ),
+        ),
+    ) );
+    foreach ( $ids as $id ) {
+        if ( ea_trial_norm( get_post_field( 'post_title', $id ) ) === ea_trial_norm( $name ) ) {
+            return (int) $id;
+        }
+    }
+    return 0;
+}
+
+/**
+ * Short lock so two clicks arriving together can't both pass the check above.
+ * Returns the lock name, or false when an identical submission is in progress.
+ */
+function ea_trial_lock( $email, $session, $name ) {
+    $key = 'ea_trial_lock_' . md5( strtolower( (string) $email ) . '|' . (string) $session . '|' . ea_trial_norm( $name ) );
+    if ( add_option( $key, time(), '', 'no' ) ) {
+        return $key;
+    }
+    if ( (int) get_option( $key ) < time() - 30 ) { // stale (a crashed request)
+        delete_option( $key );
+        return add_option( $key, time(), '', 'no' ) ? $key : false;
+    }
+    return false;
+}
+
+function ea_trial_unlock( $key ) {
+    if ( is_string( $key ) && '' !== $key ) {
+        delete_option( $key );
+    }
 }
 
 // ─── WPForms registrations → wpforms-webhook ─────────────────────────────────
