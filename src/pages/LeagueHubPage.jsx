@@ -262,7 +262,7 @@ export function seasonSections(programs) {
     }
     s.programs.push(p);
     if (p._inProgress) s.running = true;
-    if (p._startMs != null && p._startMs < s.firstStart) s.firstStart = p._startMs;
+    if (p._startSort < s.firstStart) s.firstStart = p._startSort;
   }
   for (const s of out) {
     s.label = s.running ? `Now running · ${s.name}`
