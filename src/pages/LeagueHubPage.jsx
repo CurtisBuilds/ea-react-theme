@@ -234,8 +234,8 @@ function sortGroupFor(p, allInProgress) {
     if (!open && !full) return 2;
     return 3;
   }
-  if (p._startingSoon && open && !full) return 0;
-  if (p._inProgress && open && !full) return 1;
+  if (p._inProgress && open && !full) return 0;
+  if (p._startingSoon && open && !full) return 1;
   if (p._inProgress && open && full) return 2;
   if (p._inProgress && !open && !full) return 3;
   if (p._inProgress && !open && full) return 4;
@@ -248,6 +248,39 @@ function sortGroupFor(p, allInProgress) {
 // the ~n·log(n) comparisons - roughly 8-12 `new Date()` allocations per
 // comparison, several thousand per sort - and filterPrograms rebuilt the search
 // haystack and re-ran the label regexes for every program on every keystroke.
+// Seasons by start month: Winter Jan–Mar, Spring Apr–Jun, Summer Jul–Aug, Fall Sep–Dec.
+// Lists run season by season (the running season first), so next season's
+// programs no longer sit above the ones families can join now.
+const SEASON_NAMES = ['Winter', 'Spring', 'Summer', 'Fall'];
+const SEASON_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function seasonFields(startMs, todayMs) {
+  const d = new Date(startMs ?? todayMs);
+  const m = d.getMonth();
+  const idx = m <= 2 ? 0 : m <= 5 ? 1 : m <= 7 ? 2 : 3;
+  const y = d.getFullYear();
+  return { _seasonOrder: y * 10 + idx, _seasonName: `${SEASON_NAMES[idx]} ${y}` };
+}
+
+/** Sorted programs → [{ key, label, programs }], one per season, in list order. */
+export function seasonSections(programs) {
+  const out = [];
+  for (const p of programs) {
+    let s = out[out.length - 1];
+    if (!s || s.order !== p._seasonOrder) {
+      s = { key: `${p._seasonOrder}-${out.length}`, order: p._seasonOrder, name: p._seasonName || '', programs: [], running: false, firstStart: Infinity };
+      out.push(s);
+    }
+    s.programs.push(p);
+    if (p._inProgress) s.running = true;
+    if (p._startMs != null && p._startMs < s.firstStart) s.firstStart = p._startMs;
+  }
+  for (const s of out) {
+    s.label = s.running ? `Now running · ${s.name}`
+      : (s.firstStart < Infinity ? `${s.name} · starts ${SEASON_MONTHS[new Date(s.firstStart).getMonth()]}` : s.name);
+  }
+  return out;
+}
+
 function decorateProgram(p, todayMs) {
   const startMs = getStartDate(p)?.getTime() ?? null;
   const endMs = getEndDate(p)?.getTime() ?? null;
@@ -292,6 +325,7 @@ function decorateProgram(p, todayMs) {
     // `|| 0` / `|| Infinity` preserve the original comparator's null handling.
     _endSort: endMs || 0,
     _startSort: startMs || Infinity,
+    ...seasonFields(startMs, todayMs),
     _title: String(p.Title || ''),
     _level: norm(levelLabel(p)),
     _type: norm(typeLabel(p)),
@@ -321,6 +355,7 @@ function sortPrograms(programs, userCoords) {
 
   return [...activePrograms].sort((a, b) => {
     if (a._comingSoon !== b._comingSoon) return a._comingSoon ? 1 : -1;
+    if (a._seasonOrder !== b._seasonOrder) return a._seasonOrder - b._seasonOrder;
     if (userCoords && a._dist !== b._dist) return a._dist - b._dist;
     if (a._group !== b._group) return a._group - b._group;
     if (allInProgress && a._endSort !== b._endSort) return b._endSort - a._endSort;
