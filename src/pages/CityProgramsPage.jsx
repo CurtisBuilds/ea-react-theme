@@ -5,7 +5,7 @@
  * then filters the shared programs feed by pageIdentifyer/URL/city slug so one
  * reusable template can power pages like /newmarket/ or /richmond-hill/.
  */
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Layout, useDSComponents, useViewport, getThemeData, FB } from '../lib/shared.jsx';
 import {
   cityRecordPageSegments,
@@ -26,6 +26,7 @@ import {
   normalizePrograms,
   siteSport,
   useProgramsFeed,
+  seasonSections,
 } from './LeagueHubPage.jsx';
 
 const norm = (value) => String(value || '').trim().toLowerCase();
@@ -166,14 +167,21 @@ export default function CityProgramsPage() {
           </header>
 
           <div style={{ display: 'grid', gap: isMobile ? 12 : 18 }}>
-            {cityPrograms.length ? cityPrograms.map((program) => (
-              <ProgramCard
-                key={program._key}
-                program={program}
-                isMobile={isMobile}
-                onSubscribe={setSubscribeLoc}
-                t={t}
-              />
+            {cityPrograms.length ? seasonSections(cityPrograms).map((section, i, all) => (
+              <Fragment key={section.key}>
+                {all.length > 1 && (
+                  <h2 style={{ ...FB.h(isMobile ? 24 : 28), margin: i ? (isMobile ? '16px 0 0' : '24px 0 0') : 0 }}>{section.label}</h2>
+                )}
+                {section.programs.map((program) => (
+                  <ProgramCard
+                    key={program._key}
+                    program={program}
+                    isMobile={isMobile}
+                    onSubscribe={setSubscribeLoc}
+                    t={t}
+                  />
+                ))}
+              </Fragment>
             )) : status === 'loading' && typeof window !== 'undefined' && window.__EA_SSR_LIST ? (
               // Server-rendered list (inc/ea-ssr.php), shown until the live feed arrives.
               <div dangerouslySetInnerHTML={{ __html: window.__EA_SSR_LIST }} />

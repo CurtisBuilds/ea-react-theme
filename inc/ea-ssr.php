@@ -131,6 +131,42 @@ function ea_ssr_city_programs( $slug ) {
 	return $out;
 }
 
+/** Season of a program by start month (same rule as the React list): [order, "Fall 2026"]. */
+function ea_ssr_season( $p, $today ) {
+	$ymd = (string) ( $p['Start Date'] ?? '' );
+	if ( ! preg_match( '/^(\d{4})-(\d{2})-\d{2}$/', $ymd, $m ) ) {
+		$m = array( '', substr( $today, 0, 4 ), substr( $today, 5, 2 ) );
+	}
+	$mo  = (int) $m[2];
+	$idx = $mo <= 3 ? 0 : ( $mo <= 6 ? 1 : ( $mo <= 8 ? 2 : 3 ) );
+	$names = array( 'Winter', 'Spring', 'Summer', 'Fall' );
+	return array( (int) $m[1] * 10 + $idx, $names[ $idx ] . ' ' . $m[1] );
+}
+
+/** Heading per season, as on the live page: "Now running · Fall 2026" / "Winter 2027 · starts Jan". */
+function ea_ssr_season_labels( $programs, $today ) {
+	$sections = array();
+	foreach ( $programs as $p ) {
+		list( $order, $name ) = ea_ssr_season( $p, $today );
+		$start = (string) ( $p['Start Date'] ?? '' );
+		if ( ! isset( $sections[ $order ] ) ) {
+			$sections[ $order ] = array( 'name' => $name, 'running' => false, 'first' => '' );
+		}
+		if ( '' === $start || $start <= $today ) {
+			$sections[ $order ]['running'] = true;
+		}
+		if ( '' !== $start && ( '' === $sections[ $order ]['first'] || $start < $sections[ $order ]['first'] ) ) {
+			$sections[ $order ]['first'] = $start;
+		}
+	}
+	$labels = array();
+	foreach ( $sections as $order => $sec ) {
+		$labels[ $order ] = $sec['running'] ? 'Now running · ' . $sec['name']
+			: ( '' !== $sec['first'] ? $sec['name'] . ' · starts ' . gmdate( 'M', strtotime( $sec['first'] . ' 12:00:00' ) ) : $sec['name'] );
+	}
+	return $labels;
+}
+
 function ea_ssr_clean_city( $value ) {
 	$v = preg_replace( '/\b(ea|elevation|athletics|badminton|pickleball|basketball|league|leagues|lesson|lessons|program|programs|training)\b/i', ' ', (string) $value );
 	return trim( preg_replace( '/\s+/', ' ', (string) $v ) );
@@ -225,7 +261,15 @@ function ea_ssr_city_markup( $slug ) {
 			echo '<p>' . esc_html( $intro . '. See days, times, locations and prices below, and register online.' ) . '</p>';
 
 			echo '<div data-ea-ssr-list>';
+			$today   = wp_date( 'Y-m-d' );
+			$labels  = ea_ssr_season_labels( array_slice( $programs, 0, 40 ), $today );
+			$current = null;
 			foreach ( array_slice( $programs, 0, 40 ) as $p ) {
+				$season = ea_ssr_season( $p, $today )[0];
+				if ( count( $labels ) > 1 && $season !== $current ) {
+					echo '<h2 class="ea-ssr-season">' . esc_html( $labels[ $season ] ) . '</h2>';
+				}
+				$current = $season;
 				$start = ea_ssr_date( $p['Start Date'] ?? '' );
 				$end   = ea_ssr_date( $p['End Date'] ?? '' );
 				$facts = array_filter( array(
@@ -265,7 +309,7 @@ add_action( 'wp_head', function () {
 	if ( ! ea_ssr_enabled() || ! is_page_template( 'template-city-programs.php' ) ) {
 		return;
 	}
-	echo '<style id="ea-ssr-css">.ea-ssr{max-width:1184px;margin:0 auto;padding:48px 32px 96px;font-family:var(--font-body,system-ui,sans-serif);color:var(--ea-ink,#1E526E)}.ea-ssr h1{margin:0 0 12px;font-size:40px;line-height:1.1}.ea-ssr>p{font-size:18px;line-height:1.4;margin:0 0 24px}.ea-ssr-program{background:#fff;border:1px solid #d9e7ee;border-radius:14px;padding:16px 20px;margin:0 0 12px}.ea-ssr-program h2{margin:0 0 6px;font-size:20px}.ea-ssr-program p{margin:0 0 6px}@media(max-width:767px){.ea-ssr{padding:30px 16px 72px}.ea-ssr h1{font-size:30px}}</style>' . "\n";
+	echo '<style id="ea-ssr-css">.ea-ssr{max-width:1184px;margin:0 auto;padding:48px 32px 96px;font-family:var(--font-body,system-ui,sans-serif);color:var(--ea-ink,#1E526E)}.ea-ssr h1{margin:0 0 12px;font-size:40px;line-height:1.1}.ea-ssr>p{font-size:18px;line-height:1.4;margin:0 0 24px}.ea-ssr-program{background:#fff;border:1px solid #d9e7ee;border-radius:14px;padding:16px 20px;margin:0 0 12px}.ea-ssr-program h2{margin:0 0 6px;font-size:20px}.ea-ssr-program p{margin:0 0 6px}.ea-ssr-season{margin:24px 0 12px;font-size:26px}@media(max-width:767px){.ea-ssr{padding:30px 16px 72px}.ea-ssr h1{font-size:30px}}</style>' . "\n";
 }, 20 );
 
 // ─── Off switch: add a row to Settings → EA Search ───────────────────────────
