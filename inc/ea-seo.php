@@ -413,6 +413,7 @@ function ea_seo_settings_page() {
             <?php submit_button( 'Save' ); ?>
         </form>
         <?php if ( function_exists( 'ea_ssr_settings_section' ) ) { ea_ssr_settings_section(); } ?>
+        <?php if ( function_exists( 'ea_clean_settings_section' ) ) { ea_clean_settings_section(); } ?>
     </div>
     <?php
 }
