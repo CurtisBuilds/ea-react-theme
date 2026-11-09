@@ -113,8 +113,23 @@ function ea_seo_programs() {
     return $list;
 }
 
+/** Feed addresses sometimes come without https:// ("elevationathletics.ca/newmarket"). */
+function ea_seo_abs_url( $url ) {
+    $url = trim( (string) $url );
+    if ( '' === $url || preg_match( '#^[a-z][a-z0-9+.-]*://#i', $url ) ) {
+        return $url;
+    }
+    if ( 0 === strpos( $url, '//' ) ) {
+        return 'https:' . $url;
+    }
+    if ( 0 === strpos( $url, '/' ) ) {
+        return home_url( $url );
+    }
+    return 'https://' . $url;
+}
+
 function ea_seo_norm_url( $url ) {
-    $p = wp_parse_url( (string) $url );
+    $p = wp_parse_url( ea_seo_abs_url( $url ) );
     if ( empty( $p['host'] ) ) {
         return '';
     }
@@ -188,6 +203,13 @@ function ea_seo_description( $programs ) {
         }
         return ea_seo_clip( sprintf( '%s programs in %s with Elevation Athletics. No sessions open right now; see nearby cities or check back soon.', $sname, $city ) );
     }
+    // Town pages: describe the programs the page lists (inc/ea-search-cleanup.php).
+    if ( function_exists( 'ea_clean_town_description' ) ) {
+        $town = ea_clean_town_description( $sport );
+        if ( '' !== $town ) {
+            return ea_seo_clip( $town );
+        }
+    }
     if ( $programs ) {
         $city = (string) ( $programs[0]['City'] ?? '' );
         return ea_seo_clip( sprintf(
@@ -241,7 +263,7 @@ function ea_seo_event( $p ) {
     $city     = (string) ( $p['City'] ?? '' );
     $province = (string) ( $p['Province'] ?? '' );
     $price    = $p['updated_price'] ?? ( $p['TotalPrice'] ?? null );
-    $register = (string) ( $p['RegisterLink'] ?? ( $p['URL'] ?? '' ) );
+    $register = ea_seo_abs_url( (string) ( $p['RegisterLink'] ?? ( $p['URL'] ?? '' ) ) );
     $desc     = trim( implode( ' · ', array_filter( array(
         (string) ( $p['Day'] ?? '' ),
         (string) ( $p['Time'] ?? '' ),
