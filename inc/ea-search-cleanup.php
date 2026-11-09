@@ -128,10 +128,10 @@ function ea_clean_program_active( $p, $today ) {
 }
 
 /**
- * Does the town page with this slug list at least one active program?
- * true / false, or null when a feed is unavailable (then nothing is hidden).
+ * Active programs the town page with this slug lists (same matching as
+ * CityProgramsPage.jsx), or null when a feed is unavailable.
  */
-function ea_clean_town_has_programs( $slug ) {
+function ea_clean_town_programs( $slug ) {
 	static $memo = array();
 	$slug = ea_clean_slug( $slug );
 	if ( '' === $slug ) {
@@ -145,11 +145,12 @@ function ea_clean_town_has_programs( $slug ) {
 	if ( null === $programs || null === $cities ) {
 		return $memo[ $slug ] = null;
 	}
-	$record     = ea_clean_city_record( $cities, $slug );
-	$rec_segs   = $record ? ea_clean_record_segments( $record ) : array();
-	$rec_slug   = $record ? ea_clean_slug( $record['City'] ?? ( $record['city'] ?? '' ) ) : '';
-	$aliases    = ea_clean_sport_aliases();
-	$today      = wp_date( 'Y-m-d' );
+	$record   = ea_clean_city_record( $cities, $slug );
+	$rec_segs = $record ? ea_clean_record_segments( $record ) : array();
+	$rec_slug = $record ? ea_clean_slug( $record['City'] ?? ( $record['city'] ?? '' ) ) : '';
+	$aliases  = ea_clean_sport_aliases();
+	$today    = wp_date( 'Y-m-d' );
+	$out      = array();
 	foreach ( $programs as $p ) {
 		if ( ! is_array( $p ) || ! empty( $p['is_cancelled'] ) || '' === trim( (string) ( $p['City'] ?? '' ) ) ) {
 			continue;
@@ -164,17 +165,64 @@ function ea_clean_town_has_programs( $slug ) {
 		$pcity = ea_clean_slug( $p['City'] ?? ( $p['city'] ?? '' ) );
 		if ( $ident === $slug || ( $ident && in_array( $ident, $rec_segs, true ) ) || in_array( $slug, $psegs, true )
 			|| array_intersect( $psegs, $rec_segs ) || ( $rec_slug && $pcity === $rec_slug ) || $pcity === $slug ) {
-			return $memo[ $slug ] = true;
+			$out[] = $p;
 		}
 	}
-	return $memo[ $slug ] = false;
+	return $memo[ $slug ] = $out;
+}
+
+/** true / false, or null when a feed is unavailable (then nothing is hidden). */
+function ea_clean_town_has_programs( $slug ) {
+	$list = ea_clean_town_programs( $slug );
+	return null === $list ? null : (bool) $list;
+}
+
+/** Slugs listed under "Always keep in search" (pages that bring search visits even while empty). */
+function ea_clean_keep_slugs() {
+	$raw = (string) get_option( 'ea_clean_keep', '' );
+	return array_values( array_filter( array_map( 'ea_clean_slug', preg_split( '/[\s,]+/', $raw ) ), 'strlen' ) );
+}
+
+/** Search description for a town page, built from the programs it lists ('' if not a town page / feed down). */
+function ea_clean_town_description( $sport ) {
+	if ( ! is_page_template( 'template-city-programs.php' ) ) {
+		return '';
+	}
+	$slug = (string) get_post_field( 'post_name', get_queried_object_id() );
+	$list = ea_clean_town_programs( $slug );
+	if ( null === $list ) {
+		return '';
+	}
+	$counts = array();
+	$mins   = array();
+	$maxs   = array();
+	foreach ( $list as $p ) {
+		$c = trim( (string) ( $p['City'] ?? '' ) );
+		if ( '' !== $c ) {
+			$counts[ $c ] = ( $counts[ $c ] ?? 0 ) + 1;
+		}
+		if ( isset( $p['MinAge'] ) && is_numeric( $p['MinAge'] ) ) { $mins[] = (int) $p['MinAge']; }
+		if ( isset( $p['MaxAge'] ) && is_numeric( $p['MaxAge'] ) ) { $maxs[] = (int) $p['MaxAge']; }
+	}
+	arsort( $counts );
+	$city = $counts ? (string) array_key_first( $counts ) : trim( (string) get_the_title( get_queried_object_id() ) );
+	$city = trim( preg_replace( '/\s+/', ' ', preg_replace( '/\b(ea|elevation|athletics|pickleball|basketball|badminton|programs?|leagues?|lessons?|training)\b/i', ' ', $city ) ) );
+	if ( '' === $city ) {
+		return '';
+	}
+	if ( ! $list ) {
+		return sprintf( '%s in %s with Elevation Athletics. No sessions open right now; see nearby programs or join the newsletter for new dates.', $sport, $city );
+	}
+	$ages = $mins ? ' for ages ' . min( $mins ) . ( ( ! $maxs || max( $maxs ) >= 99 ) ? '+' : '–' . max( $maxs ) ) : '';
+	return sprintf( '%s in %s: %d %s%s with Elevation Athletics. See days, times, locations and prices, and register online.',
+		$sport, $city, count( $list ), 1 === count( $list ) ? 'program' : 'programs', $ages );
 }
 
 /** IDs of published pages to keep out of search: empty town pages + "coming soon" pages. Cached 30 min. */
 function ea_clean_hidden_page_ids() {
 	$cached = get_transient( 'ea_clean_hidden_ids' );
-	if ( is_array( $cached ) ) {
-		return $cached;
+	if ( is_array( $cached ) && ( $cached['keep'] ?? null ) === ea_clean_keep_slugs() && isset( $cached['ids'] ) ) {
+		return $cached['ids'];
 	}
 	$ids   = array();
 	$pages = get_posts( array(
@@ -192,6 +240,9 @@ function ea_clean_hidden_page_ids() {
 			$ids[] = (int) $page->ID;
 			continue;
 		}
+		if ( in_array( ea_clean_slug( $page->post_name ), ea_clean_keep_slugs(), true ) ) {
+			continue; // "Always keep in search"
+		}
 		$has = ea_clean_town_has_programs( $page->post_name );
 		if ( null === $has ) {
 			$unknown = true;
@@ -205,10 +256,10 @@ function ea_clean_hidden_page_ids() {
 		$ids = array_map( 'intval', wp_list_pluck( array_filter( $pages, function ( $pg ) {
 			return 'template-coming-soon.php' === (string) get_post_meta( $pg->ID, '_wp_page_template', true );
 		} ), 'ID' ) );
-		set_transient( 'ea_clean_hidden_ids', $ids, 5 * MINUTE_IN_SECONDS );
+		set_transient( 'ea_clean_hidden_ids', array( 'keep' => ea_clean_keep_slugs(), 'ids' => $ids ), 5 * MINUTE_IN_SECONDS );
 		return $ids;
 	}
-	set_transient( 'ea_clean_hidden_ids', $ids, 30 * MINUTE_IN_SECONDS );
+	set_transient( 'ea_clean_hidden_ids', array( 'keep' => ea_clean_keep_slugs(), 'ids' => $ids ), 30 * MINUTE_IN_SECONDS );
 	return $ids;
 }
 
@@ -273,6 +324,7 @@ add_action( 'admin_post_ea_clean_save', function () {
 	}
 	check_admin_referer( 'ea_clean_save' );
 	update_option( 'ea_clean_enabled', empty( $_POST['ea_clean_enabled'] ) ? '0' : '1' );
+	update_option( 'ea_clean_keep', sanitize_textarea_field( wp_unslash( $_POST['ea_clean_keep'] ?? '' ) ) );
 	delete_transient( 'ea_clean_hidden_ids' );
 	delete_transient( 'ea_clean_redirected_ids' );
 	wp_safe_redirect( admin_url( 'options-general.php?page=ea-search&saved=1' ) );
@@ -294,6 +346,8 @@ function ea_clean_settings_section() {
 		<input type="hidden" name="action" value="ea_clean_save" />
 		<?php wp_nonce_field( 'ea_clean_save' ); ?>
 		<label><input type="checkbox" name="ea_clean_enabled" value="1" <?php checked( $on ); ?> /> Hide empty pages from search</label>
+		<p><label for="ea_clean_keep"><strong>Always keep in search</strong> (page slugs, one per line or comma-separated — e.g. town pages that still get search visits while empty):</label><br />
+		<textarea id="ea_clean_keep" name="ea_clean_keep" rows="4" cols="60"><?php echo esc_textarea( (string) get_option( 'ea_clean_keep', '' ) ); ?></textarea></p>
 		<?php submit_button( 'Save', 'secondary', 'submit', false ); ?>
 	</form>
 	<?php
