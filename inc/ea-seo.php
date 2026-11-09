@@ -393,6 +393,7 @@ function ea_seo_settings_page() {
             </table>
             <?php submit_button( 'Save' ); ?>
         </form>
+        <?php if ( function_exists( 'ea_clean_settings_section' ) ) { ea_clean_settings_section(); } ?>
     </div>
     <?php
 }
