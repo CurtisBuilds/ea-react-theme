@@ -12,6 +12,7 @@ require_once get_template_directory() . '/inc/ea-app-sync.php';
 require_once get_template_directory() . '/inc/ea-attribution.php';
 require_once get_template_directory() . '/inc/ea-seo.php';
 require_once get_template_directory() . '/inc/ea-search-cleanup.php';
+require_once get_template_directory() . '/inc/ea-city-pages.php';
 require_once get_template_directory() . '/inc/ea-ssr.php';
 require_once get_template_directory() . '/inc/ea-meta-pixel.php';
 
