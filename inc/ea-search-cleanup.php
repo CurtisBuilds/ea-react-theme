@@ -351,4 +351,7 @@ function ea_clean_settings_section() {
 		<?php submit_button( 'Save', 'secondary', 'submit', false ); ?>
 	</form>
 	<?php
+	if ( function_exists( 'ea_citypages_settings_section' ) ) {
+		ea_citypages_settings_section();
+	}
 }
