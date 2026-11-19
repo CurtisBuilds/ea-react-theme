@@ -93,20 +93,28 @@ function numericLevel(program) {
   return match ? Number(match[0]) : null;
 }
 
+// Level: the program title wins (it is what families read), then the feed's numeric level,
+// then nothing — never a guessed "Beginner" (Nov 19, same rule as the league hub + home page).
 function levelLabel(program) {
-  const level = numericLevel(program);
-  if (level !== null) {
-    if (level <= 1) return 'Beginner';
-    if (level === 2) return 'Experienced Beginner';
-    if (level === 3) return 'Intermediate';
-    if (level >= 4) return 'Advanced';
+  const t = String(program.Title || '').toLowerCase();
+  if (/intermediate\s*(\/|&|and|-|–)\s*advanced/.test(t)) return 'Intermediate–Advanced';
+  if (t.includes('advanced')) return 'Advanced';
+  if (/level\s*1\s*\/\s*2/.test(t) || /beginners?\s*(and|&|\/)\s*experienced beginners?/.test(t)) return 'Beginner & Exp. Beginner';
+  if (/beginners?\s*\/\s*intermediate/.test(t)) return 'Beginner–Intermediate';
+  if (t.includes('intermediate')) return 'Intermediate';
+  if (t.includes('experienced beginner')) return 'Experienced Beginner';
+  const m = t.match(/level\s*(\d)/);
+  if (m) {
+    const n = Number(m[1]);
+    return n <= 1 ? 'Beginner' : n === 2 ? 'Experienced Beginner' : n === 3 ? 'Intermediate' : 'Advanced';
   }
-
-  const title = String(program.Title || '').toLowerCase();
-  if (title.includes('advanced')) return 'Advanced';
-  if (title.includes('intermediate')) return 'Intermediate';
-  if (title.includes('experienced beginner')) return 'Experienced Beginner';
-  return 'Beginner';
+  if (t.includes('beginner') || t.includes('learn to play')) return 'Beginner';
+  const level = numericLevel(program);
+  if (level === null) return null;
+  if (level <= 1) return 'Beginner';
+  if (level === 2) return 'Experienced Beginner';
+  if (level === 3) return 'Intermediate';
+  return 'Advanced';
 }
 
 function parseLocalDate(dateStr) {

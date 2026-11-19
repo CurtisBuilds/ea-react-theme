@@ -456,15 +456,29 @@ function levelLabelFromNumber(p) {
   return null;
 }
 
-function levelLabel(p) {
-  const levelFromJson = levelLabelFromNumber(p);
-  if (levelFromJson) return levelFromJson;
+// Level chip: the program title wins (it is what families read), then the feed's numeric
+// level, then nothing — never a guessed "Beginner". (Nov 19: a "Women's Intermediate" league
+// with no numeric level showed "Beginner".)
+function levelFromTitle(p) {
+  const t = String(p.Title || '').toLowerCase();
+  if (!t) return null;
+  if (/intermediate\s*(\/|&|and|-|–)\s*advanced/.test(t)) return 'Intermediate–Advanced';
+  if (t.includes('advanced')) return 'Advanced';
+  if (/level\s*1\s*\/\s*2/.test(t) || /beginners?\s*(and|&|\/)\s*experienced beginners?/.test(t)) return 'Beginner & Exp. Beginner';
+  if (/beginners?\s*\/\s*intermediate/.test(t)) return 'Beginner–Intermediate';
+  if (t.includes('intermediate')) return 'Intermediate';
+  if (t.includes('experienced beginner')) return 'Experienced Beginner';
+  const m = t.match(/level\s*(\d)/);
+  if (m) {
+    const n = Number(m[1]);
+    return n <= 1 ? 'Beginner' : n === 2 ? 'Experienced Beginner' : n === 3 ? 'Intermediate' : 'Advanced';
+  }
+  if (t.includes('beginner') || t.includes('learn to play')) return 'Beginner';
+  return null;
+}
 
-  const text = `${p.Title || ''} ${p.level || ''}`.toLowerCase();
-  if (text.includes('advanced')) return 'Advanced';
-  if (text.includes('intermediate')) return 'Intermediate';
-  if (text.includes('experienced beginner')) return 'Experienced Beginner';
-  return 'Beginner';
+function levelLabel(p) {
+  return levelFromTitle(p) || levelLabelFromNumber(p);
 }
 
 function typeLabel(p) {
