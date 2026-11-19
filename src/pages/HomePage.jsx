@@ -1076,17 +1076,28 @@ function pickleballLevelLabel(p) {
   return null;
 }
 
-function inferLevelLabel(p) {
-  if (rowSportKey(p) === 'pb') {
-    const levelFromJson = pickleballLevelLabel(p);
-    if (levelFromJson) return levelFromJson;
+// Level chip: the program title wins (it is what families read), then the feed's numeric
+// level, then nothing — never a guessed "Beginner". (Nov 19: a "Women's Intermediate" league
+// with no numeric level showed "Beginner".)
+function levelFromTitle(p) {
+  const t = String(p.Title || '').toLowerCase();
+  if (!t) return null;
+  if (t.includes('advanced')) return 'Advanced';
+  if (/level\s*1\s*\/\s*2/.test(t) || /beginners?\s*(and|&|\/)\s*experienced beginners?/.test(t)) return 'Beginner & Exp. Beginner';
+  if (/beginners?\s*\/\s*intermediate/.test(t)) return 'Beginner–Intermediate';
+  if (t.includes('intermediate')) return 'Intermediate';
+  if (t.includes('experienced beginner')) return 'Experienced Beginner';
+  const m = t.match(/level\s*(\d)/);
+  if (m) {
+    const n = Number(m[1]);
+    return n <= 1 ? 'Beginner' : n === 2 ? 'Experienced Beginner' : n === 3 ? 'Intermediate' : 'Advanced';
   }
-
-  const text = `${p.Title || ''} ${p.level || ''}`.toLowerCase();
-  if (text.includes('advanced') || text.includes('level 3') || text.match(/\b3\b/)) return 'Advanced';
-  if (text.includes('intermediate') || text.includes('level 2') || text.match(/\b2\b/)) return 'Intermediate';
-  if (text.includes('beginner') || text.includes('level 1') || text.match(/\b1\b/)) return 'Beginner';
+  if (t.includes('beginner') || t.includes('learn to play')) return 'Beginner';
   return null;
+}
+
+function inferLevelLabel(p) {
+  return levelFromTitle(p) || pickleballLevelLabel(p);
 }
 
 function inferProgramTypeLabel(p) {
