@@ -1115,12 +1115,26 @@ function displayPrice(p) {
   return `$${String(raw).replace(/^\$/, '')}`;
 }
 
+// Level chip: the program title wins (it is what families read), then the feed's numeric
+// level, then nothing — never a guessed level (Nov 19, same rule as the league hub).
 function inferLevelLabel(p) {
-  const text = `${p.Title || ''} ${p.level || ''}`.toLowerCase();
-  if (text.includes('advanced') || text.includes('level 3') || text.match(/\b3\b/)) return 'Advanced';
-  if (text.includes('intermediate') || text.includes('level 2') || text.match(/\b2\b/)) return 'Intermediate';
-  if (text.includes('beginner') || text.includes('level 1') || text.match(/\b1\b/)) return 'Beginner';
-  return null;
+  const t = String(p.Title || '').toLowerCase();
+  if (/intermediate\s*(\/|&|and|-|–)\s*advanced/.test(t)) return 'Intermediate–Advanced';
+  if (t.includes('advanced')) return 'Advanced';
+  if (/level\s*1\s*\/\s*2/.test(t) || /beginners?\s*(and|&|\/)\s*experienced beginners?/.test(t)) return 'Beginner & Exp. Beginner';
+  if (/beginners?\s*\/\s*intermediate/.test(t)) return 'Beginner–Intermediate';
+  if (t.includes('intermediate')) return 'Intermediate';
+  if (t.includes('experienced beginner')) return 'Experienced Beginner';
+  const m = t.match(/level\s*(\d)/);
+  if (m) {
+    const n = Number(m[1]);
+    return n <= 1 ? 'Beginner' : n === 2 ? 'Experienced Beginner' : n === 3 ? 'Intermediate' : 'Advanced';
+  }
+  if (t.includes('beginner') || t.includes('learn to play')) return 'Beginner';
+  const raw = String(p.level ?? p.Level ?? '').match(/\d+/);
+  if (!raw) return null;
+  const n = Number(raw[0]);
+  return n <= 1 ? 'Beginner' : n === 2 ? 'Experienced Beginner' : n === 3 ? 'Intermediate' : 'Advanced';
 }
 
 function inferProgramTypeLabel(p) {
