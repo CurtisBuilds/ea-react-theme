@@ -6,6 +6,7 @@
  * reusable template can power pages like /newmarket/ or /richmond-hill/.
  */
 import { Fragment, useMemo, useState } from 'react';
+import { sessionHasStarted, torontoNowKey, useTrialClock } from '../lib/trialTime.js';
 import { Layout, useDSComponents, useViewport, getThemeData, FB } from '../lib/shared.jsx';
 import {
   cityRecordPageSegments,
@@ -149,13 +150,13 @@ function nextAvailableSessionDate(program) {
   const sessionDates = String(program.SessionDates || '')
     .split(',')
     .map((value) => parseLocalDate(value.trim()))
-    .filter((date) => date instanceof Date && !Number.isNaN(date.getTime()) && date >= today)
+    .filter((date) => date instanceof Date && !Number.isNaN(date.getTime()) && date >= today && !sessionHasStarted(date, program.Time))
     .sort((a, b) => a.getTime() - b.getTime());
 
   if (sessionDates.length) return sessionDates[0];
 
   const startDate = getStartDate(program);
-  return startDate instanceof Date && !Number.isNaN(startDate.getTime()) && startDate >= today ? startDate : null;
+  return startDate instanceof Date && !Number.isNaN(startDate.getTime()) && startDate >= today && !sessionHasStarted(startDate, program.Time) ? startDate : null;
 }
 
 function trialSessionOption(program) {
@@ -173,6 +174,8 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
   const [sending, setSending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  useTrialClock(); // drops a session from the list once it starts (Toronto time)
+  const clockKey = torontoNowKey();
 
   const sessionOptions = useMemo(() => {
     const seen = new Set();
@@ -188,7 +191,7 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
         seen.add(label);
         return true;
       });
-  }, [programs]);
+  }, [programs, clockKey]);
 
   // Sport of each session choice, so the booking reaches the EA app under the
   // right sport (a city page can list several sports).
@@ -199,7 +202,7 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
       if (label && !map.has(label)) map.set(label, rowSportKey(program) || '');
     });
     return map;
-  }, [programs]);
+  }, [programs, clockKey]);
 
   // Session id + venue of each choice, for the Meta/GA trial event.
   const sessionMeta = useMemo(() => {
@@ -213,7 +216,7 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
       map.set(label, { sessionId: id && day ? `${id}@${day}` : id, venue: program.LocationName || program.City || '', level: levelLabel(program) || '' });
     });
     return map;
-  }, [programs]);
+  }, [programs, clockKey]);
 
   const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
@@ -247,6 +250,8 @@ function CityFreeTrialForm({ cityName, programs, isMobile, t }) {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
+        // Session started meanwhile: keep the details, clear only the session so they re-pick.
+        if (data && data.code === 'ea_session_started') setForm((current) => ({ ...current, session: '' }));
         throw new Error(data && data.message ? data.message : 'Something went wrong. Please try again.');
       }
 

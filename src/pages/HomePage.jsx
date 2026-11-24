@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Layout, useDSComponents, useViewport, getThemeData, FB, MediaSlot, ActionButton } from '../lib/shared.jsx';
 import { summaryCityHref, useCitiesFeed } from '../data/cities.js';
+import { sessionHasStarted, useTrialClock } from '../lib/trialTime.js';
 import {
   LeagueCityCard,
   buildCitySummaries,
@@ -509,8 +510,8 @@ export function buildTrialSessionChoices(rows, sports) {
     const sessionDates = String(program.SessionDates || '')
       .split(',')
       .map((s) => parseLocalDate(s.trim()))
-      .filter((date) => date instanceof Date && !isNaN(date) && date >= today0);
-    const dates = sessionDates.length ? sessionDates : [getStartDate(program)].filter((date) => date instanceof Date && !isNaN(date) && date >= today0);
+      .filter((date) => date instanceof Date && !isNaN(date) && date >= today0 && !sessionHasStarted(date, program.Time));
+    const dates = sessionDates.length ? sessionDates : [getStartDate(program)].filter((date) => date instanceof Date && !isNaN(date) && date >= today0 && !sessionHasStarted(date, program.Time));
 
     dates.forEach((date) => {
       const label = trialSessionLabel(program, date);
@@ -535,6 +536,7 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', su
   const [error, setError] = useState('');
   const update = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const rows = useProgramsFeed();
+  useTrialClock(); // drops a session from the list once it starts (Toronto time)
   const trialChoices = buildTrialSessionChoices(rows || [], ['bask']);
   const ageRanges = Array.from(new Set(trialChoices.map((choice) => choice.ageRange)))
     .sort((a, b) => ageRangeSortValue(a) - ageRangeSortValue(b) || a.localeCompare(b));
@@ -572,6 +574,8 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', su
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        // Session started meanwhile: keep the details, clear only the session so they re-pick.
+        if (data && data.code === 'ea_session_started') setForm((f) => ({ ...f, session: '' }));
         throw new Error(data && data.message ? data.message : 'Something went wrong. Please try again.');
       }
       setSubmitted(true);

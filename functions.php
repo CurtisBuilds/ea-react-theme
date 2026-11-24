@@ -10,6 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Newsletter → EA Operations app sync (settings: Settings → EA App Sync).
 require_once get_template_directory() . '/inc/ea-app-sync.php';
 require_once get_template_directory() . '/inc/ea-attribution.php';
+require_once get_template_directory() . '/inc/ea-trial-sessions.php';
 require_once get_template_directory() . '/inc/ea-seo.php';
 require_once get_template_directory() . '/inc/ea-search-cleanup.php';
 require_once get_template_directory() . '/inc/ea-city-pages.php';
@@ -2495,6 +2496,17 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
             'ea_invalid',
             'Please provide a valid name, email, phone number, and session.',
             array( 'status' => 422 )
+        );
+    }
+
+    // A session that has already started can't be booked (Toronto time). Checked before
+    // anything is saved: no entry, no app row, no email, no Pixel event. See inc/ea-trial-sessions.php.
+    $requested_session_id = isset( $request['sessionId'] ) ? sanitize_text_field( wp_unslash( $request['sessionId'] ) ) : '';
+    if ( function_exists( 'ea_trial_session_started' ) && ea_trial_session_started( $requested_session_id ) ) {
+        return new WP_Error(
+            'ea_session_started',
+            'That session has already started — please pick another date.',
+            array( 'status' => 409 )
         );
     }
 
