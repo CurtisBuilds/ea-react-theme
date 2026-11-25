@@ -695,7 +695,7 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', su
           id="ft-age-range"
           value={form.ageRange}
           options={hasTrialChoices ? ageRanges : []}
-          placeholder={isTrialFeedLoading ? 'Loading ages...' : (needsTown && !form.town ? 'Select a location first' : 'Select Age Range')}
+          placeholder={isTrialFeedLoading ? 'Loading ages...' : 'Select Age Range'}
           onChange={(val) => setForm((f) => ({ ...f, ageRange: val, session: '' }))}
         />
       </div>
@@ -705,7 +705,7 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', su
           id="ft-session"
           value={form.session}
           options={sessions}
-          placeholder={hasTrialChoices && !form.ageRange ? 'Select an age range first' : 'Select Session'}
+          placeholder="Select Session"
           onChange={(val) => setForm((f) => ({ ...f, session: val }))}
         />
       </div>
