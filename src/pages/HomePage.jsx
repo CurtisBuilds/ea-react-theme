@@ -548,19 +548,31 @@ export function buildTrialSessionChoices(rows, sports) {
 // Customizer toggle "Show photo carousel" is unchecked (options.useCarousel = false).
 export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', subline = '', onSessionPick }) {
   const { Button, SectionHeading } = DS;
-  const [form, setForm] = useState({ name: '', email: '', phone: '', ageRange: '', session: '', website: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', town: '', ageRange: '', session: '', website: '' });
   const [submitted, setSubmitted] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const update = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const rows = useProgramsFeed();
   useTrialClock(); // drops a session from the list once it starts (Toronto time)
-  const trialChoices = buildTrialSessionChoices(rows || [], ['bask']);
+  const allTrialChoices = buildTrialSessionChoices(rows || [], ['bask']);
+  // Town first (Newmarket / Barrie / …): ages and sessions only show for the picked town,
+  // so a parent never sees another town's groups. With a single town the step is skipped.
+  const towns = Array.from(new Set(allTrialChoices.map((choice) => choice.town).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const needsTown = towns.length > 1;
+  const activeTown = needsTown ? form.town : (towns[0] || '');
+  const trialChoices = needsTown
+    ? (activeTown ? allTrialChoices.filter((choice) => choice.town === activeTown) : [])
+    : allTrialChoices;
+  const townKey = towns.join('|');
+  useEffect(() => {
+    if (form.town && !towns.includes(form.town)) setForm((f) => ({ ...f, town: '', ageRange: '', session: '' }));
+  }, [townKey, form.town]);
   const ageRanges = Array.from(new Set(trialChoices.map((choice) => choice.ageRange)))
     .sort((a, b) => ageRangeSortValue(a) - ageRangeSortValue(b) || a.localeCompare(b));
   const ageRangeKey = ageRanges.join('|');
   const hasTrialChoices = trialChoices.length > 0;
-  const isTrialFeedLoading = rows === null && !hasTrialChoices;
+  const isTrialFeedLoading = rows === null && !allTrialChoices.length;
 
   useEffect(() => {
     if (form.ageRange && ageRanges.length && !ageRanges.includes(form.ageRange)) {
@@ -573,8 +585,10 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', su
     setError('');
 
     // Client-side validation before hitting the server.
-    if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.ageRange.trim() || !form.session.trim()) {
-      setError('Please enter the athlete’s name, email, phone number, age range, and session.');
+    if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || (needsTown && !form.town) || !form.ageRange.trim() || !form.session.trim()) {
+      setError(needsTown
+        ? 'Please enter the athlete’s name, email, phone number, location, age range, and session.'
+        : 'Please enter the athlete’s name, email, phone number, age range, and session.');
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
@@ -588,7 +602,7 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', su
       const res = await fetch(`${t.apiUrl}ea/v1/free-trial`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': t.nonce },
-        body: JSON.stringify({ ...form, sessionId: picked.sessionId || '', venue: picked.venue || '', ...(picked.town ? { city: picked.town } : {}), ...(variant === 'landing' ? { source: 'free-trial-page' } : {}) }),
+        body: JSON.stringify({ name: form.name, email: form.email, phone: form.phone, ageRange: form.ageRange, session: form.session, website: form.website, sessionId: picked.sessionId || '', venue: picked.venue || '', ...(picked.town ? { city: picked.town } : {}), ...(variant === 'landing' ? { source: 'free-trial-page' } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -598,7 +612,7 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', su
       }
       setSubmitted(true);
       if (window.eaTrackTrial) window.eaTrackTrial(data.track);
-      setForm({ name: '', email: '', phone: '', ageRange: '', session: '', website: '' });
+      setForm({ name: '', email: '', phone: '', town: '', ageRange: '', session: '', website: '' });
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {
@@ -663,13 +677,25 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', su
         <label style={labelStyle} htmlFor="ft-phone">Phone Number</label>
         <input id="ft-phone" type="tel" style={inputStyle} placeholder="Phone Number" value={form.phone} onChange={update('phone')} />
       </div>
+      {needsTown && (
+        <div style={{ marginTop: 20 }}>
+          <label style={labelStyle} htmlFor="ft-town">Location</label>
+          <SessionSelect
+            id="ft-town"
+            value={form.town}
+            options={towns}
+            placeholder="Select Location"
+            onChange={(val) => setForm((f) => ({ ...f, town: val, ageRange: '', session: '' }))}
+          />
+        </div>
+      )}
       <div style={{ marginTop: 20 }}>
         <label style={labelStyle} htmlFor="ft-age-range">Age Range</label>
         <SessionSelect
           id="ft-age-range"
           value={form.ageRange}
           options={hasTrialChoices ? ageRanges : []}
-          placeholder={isTrialFeedLoading ? 'Loading ages...' : 'Select Age Range'}
+          placeholder={isTrialFeedLoading ? 'Loading ages...' : (needsTown && !form.town ? 'Select a location first' : 'Select Age Range')}
           onChange={(val) => setForm((f) => ({ ...f, ageRange: val, session: '' }))}
         />
       </div>
