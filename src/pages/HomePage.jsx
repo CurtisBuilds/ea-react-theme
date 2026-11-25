@@ -440,7 +440,14 @@ function isTrialProgram(p) {
   return value === 'y' || value === 'yes' || value === 'true' || value === '1';
 }
 
+// "6 - 14 (Girls)" for a girls-only program (title says Girl/Girls), so it can't be
+// mistaken for a co-ed group with the same ages.
 function ageRangeFromProgram(p) {
+  const base = baseAgeRange(p);
+  return /\bgirl'?s?\b/i.test(String(p.Title || '')) ? `${base} (Girls)` : base;
+}
+
+function baseAgeRange(p) {
   const min = p.MinAge ?? p.min_age ?? p.minAge;
   const max = p.MaxAge ?? p.max_age ?? p.maxAge;
   if (min !== undefined && min !== null && min !== '' && max !== undefined && max !== null && max !== '') {
@@ -478,11 +485,22 @@ function trialSessionId(p, date) {
   return `${id}@${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+// Town of a program: the feed's City, or the title prefix ("Aurora - …") when City
+// names two towns ("Newmarket and Aurora").
+function trialTown(p) {
+  const city = String((p && p.City) || '').trim();
+  const prefix = String((p && p.Title) || '').split(' - ')[0].trim();
+  return /\sand\s|&|\//i.test(city) && prefix ? prefix : city;
+}
+
 function trialSessionLabel(p, date) {
   const dateLabel = date
     ? `${weekdayLabel(date)}, ${formatProgramDate(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`)}`
     : [p.Day, formatDateRange(p)].filter(Boolean).join(' · ');
-  return [dateLabel, p.Time, p.LocationName || p.City]
+  const town = trialTown(p);
+  // Town first: narrow dropdowns cut the end of the label, and the town is what parents need.
+  const place = p.LocationName ? (town && !p.LocationName.includes(town) ? `${town} – ${p.LocationName}` : p.LocationName) : town;
+  return [dateLabel, p.Time, place]
     .filter(Boolean)
     .join(' · ');
 }
@@ -519,7 +537,7 @@ export function buildTrialSessionChoices(rows, sports) {
       const key = `${ageRange}|${date.getTime()}|${program.Time}|${program.LocationName || program.City}`;
       if (seen.has(key)) return;
       seen.add(key);
-      choices.push({ ageRange, label, date: date.getTime(), sessionId: trialSessionId(program, date), venue: program.LocationName || program.City || '' });
+      choices.push({ ageRange, label, date: date.getTime(), sessionId: trialSessionId(program, date), venue: program.LocationName || program.City || '', town: trialTown(program) });
     });
   });
 
@@ -570,7 +588,7 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', su
       const res = await fetch(`${t.apiUrl}ea/v1/free-trial`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': t.nonce },
-        body: JSON.stringify({ ...form, sessionId: picked.sessionId || '', venue: picked.venue || '', ...(variant === 'landing' ? { source: 'free-trial-page' } : {}) }),
+        body: JSON.stringify({ ...form, sessionId: picked.sessionId || '', venue: picked.venue || '', ...(picked.town ? { city: picked.town } : {}), ...(variant === 'landing' ? { source: 'free-trial-page' } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
