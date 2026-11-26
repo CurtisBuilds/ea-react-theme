@@ -18,6 +18,17 @@ while ( have_posts() ) :
     class="ea-react-root"
     data-page="freeTrialLanding"
     data-title="<?php echo esc_attr( get_the_title() ); ?>"
+<?php
+    // Optional offer settings (page custom fields, e.g. /bring-a-friend/): limit the form to
+    // one venue and a date window, tag its bookings, show "Who invited you?", and switch to an
+    // "offer ended" message after the end date. Plain /free-trial/ sets none of these.
+    foreach ( array( 'venue', 'start', 'end', 'source', 'invite', 'max_sessions', 'ended_text', 'ended_url' ) as $ea_key ) {
+        $ea_val = trim( (string) get_post_meta( get_the_ID(), 'ea_offer_' . $ea_key, true ) );
+        if ( '' !== $ea_val ) {
+            printf( "    data-offer-%s=\"%s\"\n", esc_attr( str_replace( '_', '-', $ea_key ) ), esc_attr( $ea_val ) );
+        }
+    }
+?>
 >
     <template id="ea-free-trial-content">
         <?php the_content(); ?>

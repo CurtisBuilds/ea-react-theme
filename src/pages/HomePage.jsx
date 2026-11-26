@@ -512,6 +512,17 @@ function ageRangeSortValue(label) {
   return match ? Number(match[0]) : 999;
 }
 
+// True when a session choice fits the page's offer (venue + date window). No offer → all.
+export function offerAllows(offer, choice) {
+  if (!offer) return true;
+  if (offer.venue && String(choice.venue || '').trim().toLowerCase() !== String(offer.venue).trim().toLowerCase()) return false;
+  const d = new Date(choice.date);
+  const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (offer.start && ymd < offer.start) return false;
+  if (offer.end && ymd > offer.end) return false;
+  return true;
+}
+
 export function buildTrialSessionChoices(rows, sports) {
   const allow = new Set(sports && sports.length ? sports : ['bask']);
   const seen = new Set();
@@ -546,16 +557,19 @@ export function buildTrialSessionChoices(rows, sports) {
 
 // Free Trial registration form. Shown in place of the carousel when the
 // Customizer toggle "Show photo carousel" is unchecked (options.useCarousel = false).
-export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', subline = '', onSessionPick }) {
+// offer (optional, from the landing page's settings): { venue, start, end, source, invite, maxSessions }
+//   venue  – only sessions at this venue        start/end – only sessions in YYYY-MM-DD..YYYY-MM-DD
+//   source – booking tag (e.g. 'bring-a-friend') invite    – show the optional "Who invited you?" field
+export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', subline = '', onSessionPick, offer = null }) {
   const { Button, SectionHeading } = DS;
-  const [form, setForm] = useState({ name: '', email: '', phone: '', town: '', ageRange: '', session: '', website: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', invitedBy: '', town: '', ageRange: '', session: '', website: '' });
   const [submitted, setSubmitted] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const update = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const rows = useProgramsFeed();
   useTrialClock(); // drops a session from the list once it starts (Toronto time)
-  const allTrialChoices = buildTrialSessionChoices(rows || [], ['bask']);
+  const allTrialChoices = buildTrialSessionChoices(rows || [], ['bask']).filter((choice) => offerAllows(offer, choice));
   // Town first (Newmarket / Barrie / …): ages and sessions only show for the picked town,
   // so a parent never sees another town's groups. With a single town the step is skipped.
   const towns = Array.from(new Set(allTrialChoices.map((choice) => choice.town).filter(Boolean))).sort((a, b) => a.localeCompare(b));
@@ -602,7 +616,7 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', su
       const res = await fetch(`${t.apiUrl}ea/v1/free-trial`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': t.nonce },
-        body: JSON.stringify({ name: form.name, email: form.email, phone: form.phone, ageRange: form.ageRange, session: form.session, website: form.website, sessionId: picked.sessionId || '', venue: picked.venue || '', ...(picked.town ? { city: picked.town } : {}), ...(variant === 'landing' ? { source: 'free-trial-page' } : {}) }),
+        body: JSON.stringify({ name: form.name, email: form.email, phone: form.phone, ageRange: form.ageRange, session: form.session, website: form.website, sessionId: picked.sessionId || '', venue: picked.venue || '', ...(picked.town ? { city: picked.town } : {}), ...(offer && offer.source ? { source: offer.source } : (variant === 'landing' ? { source: 'free-trial-page' } : {})), ...(offer && offer.invite && form.invitedBy.trim() ? { invitedBy: form.invitedBy.trim() } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -612,7 +626,7 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', su
       }
       setSubmitted(true);
       if (window.eaTrackTrial) window.eaTrackTrial(data.track);
-      setForm({ name: '', email: '', phone: '', town: '', ageRange: '', session: '', website: '' });
+      setForm({ name: '', email: '', phone: '', invitedBy: '', town: '', ageRange: '', session: '', website: '' });
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {
@@ -634,7 +648,7 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', su
   // Trial sessions come from programs.json rows marked Trial = y. If the feed is
   // unavailable, fall back to the old Customizer textarea so the form still works.
   const sessions = hasTrialChoices
-    ? trialChoices.filter((choice) => choice.ageRange === form.ageRange).slice(0, 3).map((choice) => choice.label)
+    ? trialChoices.filter((choice) => choice.ageRange === form.ageRange).slice(0, (offer && offer.maxSessions) || 3).map((choice) => choice.label)
     : [];
 
   // Heading text. On mobile it matches the other section headers (SectionHeading "lg");
@@ -677,6 +691,12 @@ export function FreeTrialSection({ DS, isMobile, t, variant = '', title = '', su
         <label style={labelStyle} htmlFor="ft-phone">Phone Number</label>
         <input id="ft-phone" type="tel" style={inputStyle} placeholder="Phone Number" value={form.phone} onChange={update('phone')} />
       </div>
+      {offer && offer.invite && (
+        <div style={{ marginTop: 20 }}>
+          <label style={labelStyle} htmlFor="ft-invited-by">Who invited you? (optional)</label>
+          <input id="ft-invited-by" type="text" style={inputStyle} placeholder="Who invited you? (optional)" value={form.invitedBy} onChange={update('invitedBy')} maxLength={80} />
+        </div>
+      )}
       {needsTown && (
         <div style={{ marginTop: 20 }}>
           <label style={labelStyle} htmlFor="ft-town">Location</label>

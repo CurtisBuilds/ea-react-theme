@@ -2470,6 +2470,8 @@ function ea_register_free_trial_route() {
             'ageRange' => array( 'required' => false, 'type' => 'string' ),
             'session' => array( 'required' => false, 'type' => 'string' ),
             'source'  => array( 'required' => false, 'type' => 'string' ),
+            // Optional "Who invited you?" (bring-a-friend page).
+            'invitedBy' => array( 'required' => false, 'type' => 'string' ),
             // Honeypot: real users leave this empty; bots tend to fill every field.
             'website' => array( 'required' => false, 'type' => 'string' ),
         ),
@@ -2490,6 +2492,7 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
     $age_range = isset( $request['ageRange'] ) ? sanitize_text_field( wp_unslash( $request['ageRange'] ) ) : '';
     $session   = isset( $request['session'] ) ? sanitize_text_field( wp_unslash( $request['session'] ) ) : '';
     $source    = isset( $request['source'] ) ? sanitize_text_field( wp_unslash( $request['source'] ) ) : 'free-trial';
+    $invited_by = isset( $request['invitedBy'] ) ? mb_substr( sanitize_text_field( wp_unslash( $request['invitedBy'] ) ), 0, 80 ) : '';
 
     if ( '' === $name || '' === $email || ! is_email( $email ) || '' === $phone || '' === $session ) {
         return new WP_Error(
@@ -2546,6 +2549,9 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
     update_post_meta( $entry_id, '_ea_age_range', $age_range );
     update_post_meta( $entry_id, '_ea_session', $session );
     update_post_meta( $entry_id, '_ea_source', $source );
+    if ( '' !== $invited_by ) {
+        update_post_meta( $entry_id, '_ea_invited_by', $invited_by );
+    }
     // Session id (ProgramID@date) + venue sent by the form; used for the Meta/GA trial event and reminders.
     $session_id = isset( $request['sessionId'] ) ? sanitize_text_field( wp_unslash( $request['sessionId'] ) ) : '';
     $venue      = isset( $request['venue'] ) ? sanitize_text_field( wp_unslash( $request['venue'] ) ) : '';
@@ -2577,7 +2583,9 @@ function ea_handle_free_trial( WP_REST_Request $request ) {
              . "Phone: {$phone}\n"
              . "City: {$city}\n"
              . "Age Range: " . ( '' !== $age_range ? $age_range : '(not specified)' ) . "\n"
-             . "Session: " . ( '' !== $session ? $session : '(not specified)' ) . "\n";
+             . "Session: " . ( '' !== $session ? $session : '(not specified)' ) . "\n"
+             . ( 'bring-a-friend' === $source ? "Booked through: Bring a friend\n" : '' )
+             . ( '' !== $invited_by ? "Invited by: {$invited_by}\n" : '' );
     $headers = array(
         'Content-Type: text/plain; charset=UTF-8',
         // Lets the admin hit "Reply" to respond to the registrant.
@@ -3228,3 +3236,23 @@ function ea_newsletter_column_content( $column, $post_id ) {
     }
 }
 add_action( 'manage_ea_newsletter_posts_custom_column', 'ea_newsletter_column_content', 10, 2 );
+
+
+/**
+ * Offer settings for the EA Free Trial Landing template (e.g. /bring-a-friend/).
+ * Editable as page custom fields; exposed to the REST API so they can be set without code.
+ */
+function ea_register_trial_offer_meta() {
+    foreach ( array( 'venue', 'start', 'end', 'source', 'invite', 'max_sessions', 'ended_text', 'ended_url' ) as $key ) {
+        register_post_meta( 'page', 'ea_offer_' . $key, array(
+            'type'              => 'string',
+            'single'            => true,
+            'show_in_rest'      => true,
+            'sanitize_callback' => 'sanitize_text_field',
+            'auth_callback'     => function () {
+                return current_user_can( 'edit_pages' );
+            },
+        ) );
+    }
+}
+add_action( 'init', 'ea_register_trial_offer_meta' );

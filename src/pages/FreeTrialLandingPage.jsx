@@ -8,7 +8,8 @@
  */
 import { useState } from 'react';
 import { Layout, useDSComponents, useViewport, getThemeData, FB } from '../lib/shared.jsx';
-import { FreeTrialSection, buildTrialSessionChoices, useProgramsFeed } from './HomePage.jsx';
+import { FreeTrialSection, buildTrialSessionChoices, offerAllows, useProgramsFeed } from './HomePage.jsx';
+import { torontoNowKey, useTrialClock } from '../lib/trialTime.js';
 
 // Read once: React replaces #ea-react-root's children on first commit, so later
 // re-renders (e.g. when the programs feed arrives) can no longer see the <template>.
@@ -18,7 +19,22 @@ function pageData() {
   if (typeof document === 'undefined') return { title: '', html: '' };
   const root = document.getElementById('ea-react-root');
   const tpl = document.getElementById('ea-free-trial-content');
-  PAGE_DATA = { title: root ? root.dataset.title || '' : '', html: tpl ? tpl.innerHTML : '' };
+  const ds = root ? root.dataset : {};
+  // Optional offer settings from the page's custom fields (template-free-trial.php), e.g.
+  // /bring-a-friend/: one venue, a date window, its own booking tag, the "Who invited you?" field.
+  const offer = (ds.offerVenue || ds.offerStart || ds.offerEnd || ds.offerSource)
+    ? {
+      venue: ds.offerVenue || '',
+      start: ds.offerStart || '',
+      end: ds.offerEnd || '',
+      source: ds.offerSource || '',
+      invite: ds.offerInvite === '1',
+      maxSessions: parseInt(ds.offerMaxSessions, 10) || 0,
+      endedText: ds.offerEndedText || '',
+      endedUrl: ds.offerEndedUrl || '',
+    }
+    : null;
+  PAGE_DATA = { title: ds.title || '', html: tpl ? tpl.innerHTML : '', offer };
   return PAGE_DATA;
 }
 
@@ -146,10 +162,16 @@ export default function FreeTrialLandingPage() {
   const DS = useDSComponents();
   const { isMobile } = useViewport();
   const t = getThemeData();
-  const { title, html } = pageData();
+  const { title, html, offer } = pageData();
+  useTrialClock();
   const [sections] = useState(() => buildSections(html));
-  const rows = useProgramsFeed();
-  const choices = buildTrialSessionChoices(rows || [], ['bask']);
+  const allRows = useProgramsFeed();
+  // With an offer venue, the headline line and map only talk about that venue.
+  const rows = allRows && offer && offer.venue
+    ? allRows.filter((r) => String(r.LocationName || '').trim().toLowerCase() === offer.venue.trim().toLowerCase())
+    : allRows;
+  const choices = buildTrialSessionChoices(rows || [], ['bask']).filter((choice) => offerAllows(offer, choice));
+  const ended = !!(offer && offer.end && torontoNowKey() > `${offer.end} 23:59`);
   const [picked, setPicked] = useState(null);
   // Map: the picked session's venue, else the next upcoming trial's venue.
   const shown = (picked && picked.venue) ? picked : (choices[0] || null);
@@ -159,8 +181,18 @@ export default function FreeTrialLandingPage() {
 
   return (
     <Layout overrides={{ minimal: true }}>
-      <FreeTrialSection DS={DS} isMobile={isMobile} t={t} variant="landing" title={title} subline={trialSubline(rows, ['bask'])} onSessionPick={setPicked} />
-      {sections.length > 0 && (
+      {ended ? (
+        <section style={{ maxWidth: 720, margin: '0 auto', padding: isMobile ? '40px 20px' : '72px 24px', textAlign: 'center', boxSizing: 'border-box' }}>
+          <h1 style={{ ...FB.h(isMobile ? 32 : 44), margin: '0 0 12px' }}>{title}</h1>
+          <p style={{ margin: '0 0 24px', fontFamily: 'var(--font-body, "Inclusive Sans", sans-serif)', fontSize: 18, color: 'var(--ea-ink, #1E526E)' }}>
+            {offer.endedText || 'This offer has ended — but your athlete can still try a session for free.'}
+          </p>
+          <a href={offer.endedUrl || '/free-trial/'} style={{ display: 'inline-block', padding: '14px 28px', borderRadius: 8, background: 'var(--ea-teal-900, #004356)', color: '#fff', fontWeight: 600, textDecoration: 'none', fontFamily: 'var(--font-body, "Inclusive Sans", sans-serif)' }}>Book a free trial</a>
+        </section>
+      ) : (
+        <FreeTrialSection DS={DS} isMobile={isMobile} t={t} variant="landing" title={title} subline={trialSubline(rows, ['bask'])} onSessionPick={setPicked} offer={offer} />
+      )}
+      {!ended && sections.length > 0 && (
         <div className="ea-free-trial-content" style={{ marginTop: isMobile ? 24 : 40 }}>
           <style>{FT_CSS}</style>
           {sections.map((sec, i) => (
@@ -173,7 +205,7 @@ export default function FreeTrialLandingPage() {
           ))}
         </div>
       )}
-      <VenueMap venue={venue} city={city} isMobile={isMobile} />
+      {!ended && <VenueMap venue={venue} city={city} isMobile={isMobile} />}
     </Layout>
   );
 }
